@@ -39,7 +39,10 @@ const Pages = {};
  * ======================================================= */
 Pages.dashboard = {
   title: '工作台',
-  sub: '华东仓 · 实时经营概览',
+  get sub() {
+    const w = Store.ws();
+    return (w ? w.name : '') + ' · 实时经营概览';
+  },
   render() {
     const st = Store.stats();
     const todos = Store.todos();
@@ -47,6 +50,11 @@ Pages.dashboard = {
     const h = new Date().getHours();
     const greet = h < 6 ? '夜深了' : h < 11 ? '早上好' : h < 14 ? '中午好' : h < 18 ? '下午好' : '晚上好';
     const pendingDocs = Store.docs().filter(d => d.status === 'pending').length;
+    const todayDocs = Store.docs().filter(d => (d.createdAt || '').startsWith(todayStr()));
+    const inDocs = todayDocs.filter(d => d.type === 'inbound').length;
+    const outDocs = todayDocs.filter(d => d.type === 'outbound').length;
+    const ocrDocs = todayDocs.filter(d => d.source === 'ocr').length;
+    const last = (Store.db.trend || []).slice(-1)[0] || { in: 0, out: 0 };
 
     const health = [
       { label: '库存充足', v: Store.products().filter(p => p.stock >= p.safe).length, c: 'var(--ok)' },
@@ -57,9 +65,10 @@ Pages.dashboard = {
     return '' +
     '<section class="hero">' +
       '<div class="hero-main">' +
-        '<p class="eyebrow">' + new Date().getFullYear() + '.' + pad(new Date().getMonth() + 1) + '.' + pad(new Date().getDate()) + ' · 华东仓</p>' +
+        '<p class="eyebrow">' + new Date().getFullYear() + '.' + pad(new Date().getMonth() + 1) + '.' + pad(new Date().getDate()) + ' · ' + ((TEMPLATES[Store.ws().type] || {}).name || '') + '</p>' +
         '<h2 class="hero-title">' + greet + '，知夏</h2>' +
-        '<p class="hero-desc">今天有 <b>' + pendingDocs + '</b> 张单据等你审批，<b>' + st.low + '</b> 个商品低于安全库存。</p>' +
+        '<p class="hero-desc">今天有 <b>' + pendingDocs + '</b> 张单据等你审批，<b>' + st.low + '</b> 个' +
+          Store.labels().product + '低于安全库存' + (st.soon ? '，<b>' + st.soon + '</b> 个 7 天内到期' : '') + '。</p>' +
         '<div class="hero-actions">' +
           '<a class="btn primary" data-go="#/scan">' + UI.icon('scan') + '扫码入库</a>' +
           '<a class="btn soft" data-go="#/scan" data-tab="doc">' + UI.icon('camera') + '拍照录单</a>' +
@@ -80,11 +89,13 @@ Pages.dashboard = {
 
     '<div class="kpis">' +
       kpiCard({ icon:'layers', label:'库存总值', value: UI.moneyShort(st.value), tone:'brand',
-        foot:'<span class="up">' + UI.icon('up') + '3.2%</span> 较上周' }) +
-      kpiCard({ icon:'downArrow', label:'今日入库', value:'168', tone:'ok',
-        foot:'6 张单据 · 其中 3 张来自拍照识别' }) +
-      kpiCard({ icon:'up', label:'今日出库', value:'154', tone:'accent',
-        foot:'4 张单据 · 平均 12 分钟完成' }) +
+        foot: st.value
+          ? '<span class="up">' + UI.icon('up') + '3.2%</span> 较上周'
+          : '还没有' + Store.labels().product + '，去物料档案添加' }) +
+      kpiCard({ icon:'downArrow', label:'今日入库', value:String(last.in || 0), tone:'ok',
+        foot: inDocs + ' 张单据 · 其中 ' + ocrDocs + ' 张来自拍照识别' }) +
+      kpiCard({ icon:'up', label:'今日出库', value:String(last.out || 0), tone:'accent',
+        foot: outDocs + ' 张单据 · 全部已复核' }) +
       kpiCard({ icon:'alert', label:'待处理', value: String(todos.length), tone:'warn',
         foot:'含 ' + pendingDocs + ' 个审批 · ' + st.soon + ' 个效期提醒' }) +
     '</div>' +
@@ -95,13 +106,16 @@ Pages.dashboard = {
           '<div><h3>出入库趋势</h3><p>近 7 天 · 单位：件</p></div>' +
           '<div class="legend"><span><i class="dot brand"></i>入库</span><span><i class="dot accent"></i>出库</span></div>' +
         '</div>' +
-        UI.groupedBars(Store.db.trend, { h: 196 }) +
+        (Store.db.trend && Store.db.trend.length
+          ? UI.groupedBars(Store.db.trend, { h: 196 })
+          : emptyState('chart', '还没有出入库记录', '扫码或录单后，这里会出现近 7 天趋势', '')) +
       '</div>' +
 
       '<div class="card health-card">' +
         '<div class="card-head"><div><h3>库存健康度</h3><p>' + st.sku + ' 个 SKU</p></div></div>' +
         '<div class="health-wrap">' +
-          UI.donut(health.map(x => ({ v: x.v, c: x.c, label: x.label })), String(Math.round((health[0].v / st.sku) * 100)) + '%', '健康占比') +
+          UI.donut(health.map(x => ({ v: x.v, c: x.c, label: x.label })),
+            st.sku ? Math.round((health[0].v / st.sku) * 100) + '%' : '—', '健康占比') +
           '<div class="health-legend">' +
             health.map(x => '<div class="hl-row"><i style="background:' + x.c + '"></i><span>' + x.label + '</span><b>' + x.v + '</b></div>').join('') +
           '</div>' +
@@ -110,20 +124,20 @@ Pages.dashboard = {
 
       '<div class="card todo-card">' +
         '<div class="card-head"><div><h3>待办</h3><p>按紧急度排序</p></div><a class="link" data-go="#/collab">全部' + UI.icon('right') + '</a></div>' +
-        '<div class="todo-list">' +
+        (todos.length ? '<div class="todo-list">' +
           todos.map(t => '<button class="todo-item" data-todo="' + t.id + '">' +
             '<span class="todo-ico ' + t.type + '">' + UI.icon(t.type === 'approve' ? 'check' : t.type === 'expiry' ? 'clock' : t.type === 'warn' ? 'alert' : 'layers') + '</span>' +
             '<span class="todo-main"><b>' + t.title + '</b><i>' + t.desc + '</i></span>' +
             '<span class="todo-at">' + t.at + '</span>' +
           '</button>').join('') +
-        '</div>' +
+        '</div>'
+          : emptyState('check', '没有待办', '审批、盘点和效期提醒会出现在这里', '')) +
       '</div>' +
 
       '<div class="card alert-card">' +
         '<div class="card-head"><div><h3>补货预警</h3><p>低于安全库存</p></div><a class="link" data-go="#/inventory">去补货' + UI.icon('right') + '</a></div>' +
         '<div class="mini-list">' +
           (lowList.length ? lowList.map(p => {
-            const c = CATS[p.cat];
             return '<button class="mini-item" data-prod="' + p.id + '">' + UI.productTile(p, 'xs') +
               '<span class="mini-main"><b>' + p.name + '</b><i>' + p.spec + '</i></span>' +
               '<span class="mini-val ' + (p.stock === 0 ? 'bad' : 'warn') + '">' + p.stock + '<i>/' + p.safe + '</i></span>' +
@@ -156,7 +170,7 @@ Pages.dashboard = {
 function openProduct(pid) {
   const p = Store.product(pid);
   if (!p) return;
-  const c = CATS[p.cat];
+  const c = Store.cat(p.cat);
   const d = daysTo(p.expiry);
   const lowRatio = Math.min(100, Math.round((p.stock / Math.max(p.safe, 1)) * 100));
   UI.open({
@@ -165,7 +179,7 @@ function openProduct(pid) {
     body:
       '<div class="pd-hero">' + UI.productTile(p, 'lg') +
         '<div class="pd-hero-r">' +
-          '<div class="pd-price">' + UI.money(p.price) + '<i>零售价</i></div>' +
+          '<div class="pd-price">' + UI.money(p.price || p.cost) + '<i>' + (p.price ? '零售价' : '成本价') + '</i></div>' +
           '<div class="pd-meta">' +
             '<span>' + c.name + '</span><span>' + p.unit + '</span><span>' + p.abc + ' 类</span>' +
           '</div>' +
@@ -231,7 +245,7 @@ function openAdjust(pid) {
  * 2. 扫码作业
  * ======================================================= */
 Pages.scan = {
-  title: '扫码作业',
+  get title() { return Store.labels().scan; },
   sub: '条码 / 单据 / 图文识别',
   render() {
     const tabs = [
@@ -567,6 +581,13 @@ function escapeHtml(s) {
 }
 
 function makeSampleInvoice() {
+  const ps = Store.products().slice(0, 3);
+  const sup = Store.suppliers()[0] || '示例供应商';
+  const code = 'RK' + todayStr().replace(/-/g, '') + '031';
+  const qty = [60, 10, 8];
+  const rows = ps.map((p, i) => [p.name, p.spec || '', String(qty[i] || 5), p.cost.toFixed(2)]);
+  const total = rows.reduce((a, r) => a + Number(r[2]) * Number(r[3]), 0);
+
   const c = document.createElement('canvas');
   c.width = 900; c.height = 1100;
   const x = c.getContext('2d');
@@ -575,26 +596,21 @@ function makeSampleInvoice() {
   x.font = 'bold 44px "Microsoft YaHei", sans-serif';
   x.fillText('送 货 单', 340, 90);
   x.font = '26px "Microsoft YaHei", sans-serif';
-  x.fillText('供应商：' + SUPPLIERS[0], 70, 180);
-  x.fillText('单号：RK20261025031', 70, 230);
-  x.fillText('日期：2026-10-25', 70, 280);
+  x.fillText('供应商：' + sup, 70, 180);
+  x.fillText('单号：' + code, 70, 230);
+  x.fillText('日期：' + todayStr(), 70, 280);
   x.strokeStyle = '#111'; x.lineWidth = 2;
   x.beginPath(); x.moveTo(60, 320); x.lineTo(840, 320); x.stroke();
   x.font = 'bold 26px "Microsoft YaHei", sans-serif';
-  x.fillText('商品名称', 70, 370); x.fillText('规格', 380, 370); x.fillText('数量', 600, 370); x.fillText('单价', 720, 370);
-  const rows = [
-    ['冰露纯净水', '550ml×24瓶', '60', '18.50'],
-    ['乐事薯片原味', '70g×22包', '10', '96.00'],
-    ['三只松鼠每日坚果', '750g/30包', '8', '59.00'],
-  ];
+  x.fillText('名称', 70, 370); x.fillText('规格', 380, 370); x.fillText('数量', 620, 370); x.fillText('单价', 720, 370);
   x.font = '26px "Microsoft YaHei", sans-serif';
   rows.forEach((r, i) => {
     const y = 430 + i * 62;
-    x.fillText(r[0], 70, y); x.fillText(r[1], 380, y); x.fillText(r[2], 600, y); x.fillText(r[3], 720, y);
+    x.fillText(r[0], 70, y); x.fillText(r[1], 380, y); x.fillText(r[2], 620, y); x.fillText(r[3], 720, y);
   });
   x.beginPath(); x.moveTo(60, 640); x.lineTo(840, 640); x.stroke();
   x.font = 'bold 28px "Microsoft YaHei", sans-serif';
-  x.fillText('合计：2860.00', 600, 700);
+  x.fillText('合计：' + total.toFixed(2), 560, 700);
   x.font = '24px "Microsoft YaHei", sans-serif';
   x.fillText('收货人：____________    制单人：____________', 70, 800);
   return c.toDataURL('image/png');
@@ -783,7 +799,7 @@ function mountText(el) {
 const InvState = { q: '', filter: 'all' };
 
 Pages.inventory = {
-  title: '库存',
+  get title() { return Store.labels().inv; },
   sub: '实时库存 · 批次 · 库位',
   render() {
     const st = Store.stats();
@@ -865,7 +881,7 @@ Pages.inventory = {
 const DocState = { filter: 'all' };
 
 Pages.docs = {
-  title: '单据',
+  get title() { return Store.labels().doc; },
   sub: '入库 · 出库 · 调拨 · 盘点',
   render() {
     let list = Store.docs();
@@ -970,7 +986,7 @@ function openDoc(id) {
  * 5. 商品
  * ======================================================= */
 Pages.products = {
-  title: '商品',
+  get title() { return Store.labels().productPage; },
   sub: '档案 · 条码 · 图片',
   render() {
     const list = Store.products();
@@ -978,8 +994,10 @@ Pages.products = {
         '<label class="search inline">' + UI.icon('search') + '<input id="pQ" placeholder="搜索商品"></label>' +
         '<button class="btn soft sm" id="pAdd">' + UI.icon('plus') + '拍照建档</button>' +
       '</div>' +
+      (list.length ? '' : emptyState('tag', '还没有' + Store.labels().product,
+        '新建空间后可以手动添加，也可以扫码自动建档', '<button class="btn primary sm" id="pAdd2">新增' + Store.labels().product + '</button>')) +
       '<div class="prod-grid">' + list.map(p => {
-        const c = CATS[p.cat];
+        const c = Store.cat(p.cat);
         return '<article class="card prod-card" data-prod="' + p.id + '">' +
           '<div class="pc-visual" style="--h:' + c.hue + '">' + UI.productTile(p, 'lg') +
             '<span class="pc-cat">' + c.name + '</span>' +
@@ -989,13 +1007,18 @@ Pages.products = {
             '<b class="pc-name">' + p.name + '</b>' +
             '<p class="pc-spec">' + p.spec + '</p>' +
             '<div class="pc-bc">' + UI.barcode(p.bc, { h: 28 }) + '</div>' +
-            '<div class="pc-foot"><span class="mono">' + UI.ean13(p.bc) + '</span><b>' + UI.money(p.price) + '</b></div>' +
+            '<div class="pc-foot"><span class="mono">' + (p.bc ? UI.ean13(p.bc) : '—') + '</span><b>' +
+              (p.price ? UI.money(p.price) : '<i class="pc-cost">成本</i>' + UI.money(p.cost)) + '</b></div>' +
           '</div>' +
         '</article>';
       }).join('') + '</div>';
   },
   mount(el) {
     el.querySelectorAll('[data-prod]').forEach(c => c.addEventListener('click', () => openProduct(c.dataset.prod)));
+    ['#pAdd', '#pAdd2'].forEach(sel => {
+      const b = el.querySelector(sel);
+      if (b) b.addEventListener('click', () => UI.toast('新增物料：填名称 / 规格 / 库位，条码可扫码带入', 'ok'));
+    });
     const q = el.querySelector('#pQ');
     if (q) q.addEventListener('input', () => {
       const kw = q.value.trim().toLowerCase();
@@ -1072,7 +1095,7 @@ Pages.insights = {
       byCat[p.cat].n++;
     });
     const catSegs = Object.keys(byCat).map((k, i) => ({
-      label: CATS[k].name, v: byCat[k].v,
+      label: Store.cat(k).name, v: byCat[k].v,
       c: ['var(--brand)', 'var(--accent)', 'var(--ok)', 'var(--warn)', 'var(--danger)'][i % 5],
     }));
     const abc = [
@@ -1081,8 +1104,10 @@ Pages.insights = {
       { k: 'C 类（长尾）', v: ps.filter(p => p.abc === 'C').length, c: 'var(--ink-3)' },
     ];
     const st2 = Store.stats();
-    const outRate = ((st2.out / st2.sku) * 100).toFixed(1) + '%';
-    const activeRate = (ps.filter(p => p.sales30 >= 25).length / ps.length * 100).toFixed(1) + '%';
+    const outRate = st2.sku ? ((st2.out / st2.sku) * 100).toFixed(1) + '%' : '—';
+    const activeRate = ps.length
+      ? (ps.filter(p => p.sales30 >= 25).length / ps.length * 100).toFixed(1) + '%'
+      : '—';
     const suggest = ps.filter(p => p.stock < p.safe * 1.2)
       .map(p => ({ p, need: Math.max(p.safe * 2 - p.stock, 0) }))
       .sort((a, b) => b.need - a.need).slice(0, 5);
@@ -1157,6 +1182,16 @@ Pages.about = {
           '<div><i>一句话定位</i><b>给中小零售商和仓配团队的「扫一下就懂货」的进销存</b></div>' +
           '<div><i>核心矛盾</i><b>传统进销存把成本压在录入上，我们把录入做到接近零</b></div>' +
           '<div><i>识别内核</i><b>浏览器端真实 OCR + 条码解码，离线优先，不上传图片</b></div>' +
+        '</div>' +
+      '</section>' +
+
+      '<section class="card">' +
+        '<div class="card-head"><div><h3>工作空间模型</h3><p>一个空间 = 一家店，数据完全隔离</p></div></div>' +
+        '<div class="tech-list">' +
+          '<div><b>为什么要拆</b><span>奶茶店的物料几乎没有条码，核心痛点是<strong>效期</strong>；超市的核心是<strong>条码</strong>，品类横跨食品到日用。硬塞进一套品类树，就是“什么都装”的混乱。</span></div>' +
+          '<div><b>怎么拆</b><span>进入系统先选工作空间。每个空间独立持有品类、物料、单据、库存与趋势数据，互不可见，也不会互相覆盖。</span></div>' +
+          '<div><b>术语随行</b><span>选奶茶店模板时，导航自动变成「物料档案 / 原料库存 / 出入库单 / 收货扫码」；选超市模板则是「商品档案 / 库存 / 单据 / 扫码作业」。</span></div>' +
+          '<div><b>三个起点</b><span>奶茶店（18 个物料、5 个品类、重批次效期）· 超市便利店（16 个商品、EAN-13 条码驱动）· 空白空间（0 物料，自己建）。</span></div>' +
         '</div>' +
       '</section>' +
 

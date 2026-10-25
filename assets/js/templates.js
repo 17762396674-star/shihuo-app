@@ -1,0 +1,167 @@
+/* ===================================================================
+ * 拾货 SHIHUO · 行业模板
+ * 每个模板 = 一套品类 / 物料 / 单位 / 术语 / 演示单据
+ * 工作空间创建时从模板生成独立数据副本，之后互不影响。
+ * =================================================================== */
+
+const TEMPLATES = {
+
+  /* ---------------- 奶茶店 ---------------- */
+  milktea: {
+    key: 'milktea',
+    name: '奶茶店',
+    desc: '茶底、小料、包材 · 重效期、轻条码',
+    hue: '28',
+    glyph: 'cup',
+    tip: '鲜奶、果酱、珍珠都有保质期，入库即登记批次与效期',
+    labels: { product: '物料', productPage: '物料档案', inv: '原料库存', doc: '出入库单', scan: '收货扫码' },
+    cats: {
+      tea:     { name: '茶底',     hue: '158', glyph: 'leaf' },
+      dairy:   { name: '奶基底',   hue: '202', glyph: 'bottle' },
+      topping: { name: '小料',     hue: '28',  glyph: 'bag' },
+      pack:    { name: '包材',     hue: '262', glyph: 'box' },
+      sugar:   { name: '糖与果酱', hue: '334', glyph: 'drop' },
+    },
+    suppliers: ['茶源供应链', '鲜牧乳业', '甜心食品', '包材直供'],
+    products: [
+      { id:'M1001', name:'锡兰红茶', spec:'500g/包', bc:'', cat:'tea', unit:'包', stock:8, safe:6, cost:38, price:0, loc:'A-01-01', batch:'B2609', expiry:'2027-03-01', supplier:'茶源供应链', abc:'A', sales30:26, lead:3 },
+      { id:'M1002', name:'茉莉绿茶', spec:'500g/包', bc:'', cat:'tea', unit:'包', stock:5, safe:6, cost:34, price:0, loc:'A-01-02', batch:'B2609', expiry:'2027-01-20', supplier:'茶源供应链', abc:'A', sales30:22, lead:3 },
+      { id:'M1003', name:'四季春乌龙', spec:'500g/包', bc:'', cat:'tea', unit:'包', stock:11, safe:6, cost:36, price:0, loc:'A-01-03', batch:'B2610', expiry:'2027-04-11', supplier:'茶源供应链', abc:'B', sales30:15, lead:3 },
+      { id:'M1004', name:'阿萨姆红茶', spec:'1kg/袋', bc:'', cat:'tea', unit:'袋', stock:3, safe:4, cost:72, price:0, loc:'A-01-04', batch:'B2608', expiry:'2026-12-05', supplier:'茶源供应链', abc:'C', sales30:9, lead:5 },
+      { id:'M1005', name:'全脂牛奶', spec:'1L×12盒', bc:'6901234567024', cat:'dairy', unit:'箱', stock:6, safe:8, cost:128, price:0, loc:'C-01-01', batch:'B2610', expiry:'2026-11-04', supplier:'鲜牧乳业', abc:'A', sales30:34, lead:2 },
+      { id:'M1006', name:'植脂末', spec:'1kg/袋', bc:'', cat:'dairy', unit:'袋', stock:14, safe:10, cost:26, price:0, loc:'C-01-02', batch:'B2609', expiry:'2027-05-30', supplier:'鲜牧乳业', abc:'B', sales30:19, lead:4 },
+      { id:'M1007', name:'动物淡奶油', spec:'1L/盒', bc:'', cat:'dairy', unit:'盒', stock:9, safe:12, cost:42, price:0, loc:'C-02-01', batch:'B2610', expiry:'2026-11-01', supplier:'鲜牧乳业', abc:'A', sales30:28, lead:2 },
+      { id:'M1008', name:'厚椰乳', spec:'1L×6盒', bc:'', cat:'dairy', unit:'箱', stock:4, safe:5, cost:78, price:0, loc:'C-02-02', batch:'B2610', expiry:'2026-12-18', supplier:'鲜牧乳业', abc:'B', sales30:12, lead:4 },
+      { id:'M1009', name:'黑糖珍珠', spec:'1kg/袋', bc:'', cat:'topping', unit:'袋', stock:12, safe:8, cost:22, price:0, loc:'B-01-01', batch:'B2610', expiry:'2027-02-10', supplier:'甜心食品', abc:'A', sales30:41, lead:3 },
+      { id:'M1010', name:'椰果', spec:'3kg/桶', bc:'', cat:'topping', unit:'桶', stock:6, safe:4, cost:36, price:0, loc:'B-01-02', batch:'B2609', expiry:'2027-01-15', supplier:'甜心食品', abc:'B', sales30:16, lead:3 },
+      { id:'M1011', name:'芋圆', spec:'1kg/袋', bc:'', cat:'topping', unit:'袋', stock:2, safe:5, cost:18, price:0, loc:'B-01-03', batch:'B2610', expiry:'2026-11-22', supplier:'甜心食品', abc:'C', sales30:7, lead:3 },
+      { id:'M1012', name:'脆波波', spec:'1kg/袋', bc:'', cat:'topping', unit:'袋', stock:7, safe:4, cost:20, price:0, loc:'B-01-04', batch:'B2610', expiry:'2027-03-08', supplier:'甜心食品', abc:'C', sales30:6, lead:3 },
+      { id:'M1013', name:'700ml 注塑杯', spec:'500个/箱', bc:'6911112223332', cat:'pack', unit:'箱', stock:9, safe:6, cost:68, price:0, loc:'D-01-01', batch:'B2609', expiry:'2029-01-01', supplier:'包材直供', abc:'A', sales30:23, lead:5 },
+      { id:'M1014', name:'95口径球盖', spec:'500个/箱', bc:'', cat:'pack', unit:'箱', stock:5, safe:6, cost:42, price:0, loc:'D-01-02', batch:'B2609', expiry:'2029-01-01', supplier:'包材直供', abc:'A', sales30:23, lead:5 },
+      { id:'M1015', name:'封口膜', spec:'3000张/卷', bc:'', cat:'pack', unit:'卷', stock:3, safe:4, cost:55, price:0, loc:'D-01-03', batch:'B2608', expiry:'2028-06-01', supplier:'包材直供', abc:'B', sales30:11, lead:7 },
+      { id:'M1016', name:'粗吸管', spec:'2000支/箱', bc:'', cat:'pack', unit:'箱', stock:11, safe:5, cost:48, price:0, loc:'D-02-01', batch:'B2609', expiry:'2028-09-01', supplier:'包材直供', abc:'B', sales30:14, lead:7 },
+      { id:'M1017', name:'果糖', spec:'25kg/桶', bc:'6922223334443', cat:'sugar', unit:'桶', stock:2, safe:3, cost:210, price:0, loc:'E-01-01', batch:'B2610', expiry:'2027-06-30', supplier:'甜心食品', abc:'A', sales30:18, lead:4 },
+      { id:'M1018', name:'草莓果酱', spec:'1kg/瓶', bc:'', cat:'sugar', unit:'瓶', stock:8, safe:6, cost:32, price:0, loc:'E-01-02', batch:'B2610', expiry:'2026-12-28', supplier:'甜心食品', abc:'B', sales30:13, lead:4 },
+    ],
+    docs: [
+      { id:'RK-20261025-0041', type:'inbound', code:'RK20261025041', partner:'茶源供应链', status:'pending', amount:1860, createdAt:'2026-10-25 09:20', owner:'林知夏', source:'ocr',
+        items:[{ pid:'M1001', qty:10, price:38 },{ pid:'M1009', qty:12, price:22 }] },
+      { id:'CK-20261025-0042', type:'outbound', code:'CK20261025042', partner:'吧台出品领用', status:'done', amount:0, createdAt:'2026-10-25 08:30', owner:'苏晴', source:'scan',
+        items:[{ pid:'M1013', qty:2, price:0 },{ pid:'M1015', qty:1, price:0 }] },
+      { id:'RK-20261024-0038', type:'inbound', code:'RK20261024038', partner:'鲜牧乳业', status:'approved', amount:1536, createdAt:'2026-10-24 18:10', owner:'林知夏', source:'ocr',
+        items:[{ pid:'M1005', qty:12, price:128 }] },
+      { id:'PD-20261024-0021', type:'check', code:'PD20261024021', partner:'A 区 · 茶底货架', status:'pending', amount:0, createdAt:'2026-10-24 21:40', owner:'周航', source:'scan',
+        items:[{ pid:'M1006', qty:-2, price:0 },{ pid:'M1011', qty:-1, price:0 }] },
+    ],
+    todos: [
+      { id:'T1', type:'expiry', title:'淡奶油 2 天后到期', desc:'C-02-01 库位 9 盒，建议优先消耗或做活动', at:'今天 06:30', tag:'效期' },
+      { id:'T2', type:'approve', title:'待审：入库单 RK20261025-0041', desc:'茶源供应链 · 2 个物料 · ¥1,860.00', at:'09:20', tag:'审批' },
+      { id:'T3', type:'warn', title:'芋圆低于安全库存', desc:'B-01-03 仅剩 2 袋，安全线 5 袋', at:'07:00', tag:'补货' },
+      { id:'T4', type:'check', title:'盘点差异待确认 PD20261024021', desc:'植脂末 -2、芋圆 -1，需复核', at:'昨晚 21:40', tag:'盘点' },
+      { id:'T5', type:'expiry', title:'全脂牛奶 10 天后到期', desc:'C-01-01 共 6 箱，注意先进先出', at:'今天 06:30', tag:'效期' },
+    ],
+    notices: [
+      { id:'N1', t:'效期预警', d:'动物淡奶油 2026-11-01 到期，剩 2 天', time:'今天 06:30', kind:'warn' },
+      { id:'N2', t:'低于安全库存', d:'芋圆仅剩 2 袋', time:'07:00', kind:'warn' },
+      { id:'N3', t:'识别完成', d:'本月已通过 OCR 录入 14 张送货单', time:'昨天', kind:'ok' },
+    ],
+    trend: [
+      { d:'10-19', in:34, out:28 }, { d:'10-20', in:42, out:36 },
+      { d:'10-21', in:28, out:40 }, { d:'10-22', in:56, out:33 },
+      { d:'10-23', in:38, out:44 }, { d:'10-24', in:48, out:41 },
+      { d:'10-25', in:26, out:30 },
+    ],
+  },
+
+  /* ---------------- 超市 ---------------- */
+  market: {
+    key: 'market',
+    name: '超市 / 便利店',
+    desc: '食品、日用、个护 · 条码驱动',
+    hue: '262',
+    glyph: 'box',
+    tip: '每个商品都有 EAN-13 条码，扫码即建档、即出入库',
+    labels: { product: '商品', productPage: '商品档案', inv: '库存', doc: '单据', scan: '扫码作业' },
+    cats: {
+      drink: { name: '饮品',   hue: '202', glyph: 'bottle' },
+      snack: { name: '零食',   hue: '28',  glyph: 'bag' },
+      digi:  { name: '数码',   hue: '262', glyph: 'chip' },
+      care:  { name: '个护',   hue: '334', glyph: 'drop' },
+      daily: { name: '日用',   hue: '158', glyph: 'box' },
+    },
+    suppliers: ['华东食品供应链', '鲜达冷链', '深圳智联数码', '恒美日化', '禾丰粮油'],
+    products: [
+      { id:'P1001', name:'冰露纯净水', spec:'550ml×24瓶', bc:'6901234567017', cat:'drink', unit:'箱', stock:126, safe:60, cost:18.5, price:26, loc:'A-01-03', batch:'B2610', expiry:'2027-06-30', supplier:'华东食品供应链', abc:'A', sales30:210, lead:3 },
+      { id:'P1002', name:'农夫山泉天然水', spec:'550ml×12瓶', bc:'6902345678028', cat:'drink', unit:'件', stock:48, safe:70, cost:23, price:32, loc:'A-01-04', batch:'B2610', expiry:'2027-08-12', supplier:'华东食品供应链', abc:'A', sales30:186, lead:3 },
+      { id:'P1003', name:'元气森林白桃气泡水', spec:'480ml×15瓶', bc:'6903456789039', cat:'drink', unit:'箱', stock:73, safe:40, cost:52, price:72, loc:'A-02-01', batch:'B2610', expiry:'2027-03-20', supplier:'鲜达冷链', abc:'A', sales30:132, lead:4 },
+      { id:'P1004', name:'伊利安慕希酸奶', spec:'205g×12盒', bc:'6904567890040', cat:'drink', unit:'箱', stock:22, safe:30, cost:46, price:63, loc:'C-01-01', batch:'B2609', expiry:'2026-11-08', supplier:'鲜达冷链', abc:'B', sales30:95, lead:2 },
+      { id:'P1005', name:'三只松鼠每日坚果', spec:'750g/30包', bc:'6905678901051', cat:'snack', unit:'袋', stock:86, safe:30, cost:59, price:89, loc:'B-01-02', batch:'B2610', expiry:'2027-02-28', supplier:'华东食品供应链', abc:'B', sales30:64, lead:5 },
+      { id:'P1006', name:'乐事薯片原味', spec:'70g×22包', bc:'6906789012062', cat:'snack', unit:'箱', stock:134, safe:50, cost:96, price:138, loc:'B-01-05', batch:'B2610', expiry:'2027-01-30', supplier:'华东食品供应链', abc:'A', sales30:118, lead:4 },
+      { id:'P1007', name:'好丽友派巧克力', spec:'12枚/盒', bc:'6907890123073', cat:'snack', unit:'盒', stock:9, safe:25, cost:13.5, price:19.9, loc:'B-02-02', batch:'B2608', expiry:'2027-02-14', supplier:'华东食品供应链', abc:'C', sales30:52, lead:4 },
+      { id:'P1008', name:'小米移动电源 3', spec:'10000mAh 快充版', bc:'6908901234084', cat:'digi', unit:'台', stock:41, safe:15, cost:79, price:129, loc:'D-01-01', batch:'B2609', expiry:'2030-01-01', supplier:'深圳智联数码', abc:'A', sales30:33, lead:7 },
+      { id:'P1009', name:'罗技 M185 无线鼠标', spec:'黑色 2.4G', bc:'6909012345095', cat:'digi', unit:'个', stock:57, safe:20, cost:45, price:79, loc:'D-01-02', batch:'B2609', expiry:'2030-01-01', supplier:'深圳智联数码', abc:'B', sales30:28, lead:7 },
+      { id:'P1010', name:'绿联 Type-C 数据线', spec:'1m 3A 编织', bc:'6910123456106', cat:'digi', unit:'条', stock:0, safe:40, cost:11, price:25, loc:'D-02-03', batch:'B2608', expiry:'2030-01-01', supplier:'深圳智联数码', abc:'C', sales30:74, lead:7 },
+      { id:'P1011', name:'蓝月亮深层洁净洗衣液', spec:'3kg/瓶', bc:'6911234567117', cat:'daily', unit:'瓶', stock:64, safe:25, cost:32, price:46, loc:'E-01-01', batch:'B2610', expiry:'2028-05-01', supplier:'恒美日化', abc:'B', sales30:41, lead:5 },
+      { id:'P1012', name:'维达超韧抽纸', spec:'130抽×24包', bc:'6912345678128', cat:'daily', unit:'提', stock:98, safe:35, cost:58, price:82, loc:'E-01-04', batch:'B2610', expiry:'2029-01-01', supplier:'恒美日化', abc:'A', sales30:88, lead:5 },
+      { id:'P1013', name:'金龙鱼稻米油', spec:'5L/桶', bc:'6913456789139', cat:'daily', unit:'桶', stock:31, safe:18, cost:76, price:99, loc:'E-02-01', batch:'B2609', expiry:'2027-09-01', supplier:'禾丰粮油', abc:'B', sales30:26, lead:6 },
+      { id:'P1014', name:'花王蒸汽眼罩', spec:'14片/盒', bc:'6914567890140', cat:'care', unit:'盒', stock:44, safe:15, cost:38, price:59, loc:'F-01-02', batch:'B2610', expiry:'2028-03-01', supplier:'恒美日化', abc:'B', sales30:37, lead:5 },
+      { id:'P1015', name:'舒肤佳纯白沐浴露', spec:'720ml/瓶', bc:'6915678901151', cat:'care', unit:'瓶', stock:76, safe:25, cost:29, price:42, loc:'F-01-03', batch:'B2610', expiry:'2028-07-01', supplier:'恒美日化', abc:'B', sales30:45, lead:5 },
+      { id:'P1016', name:'参半益生菌漱口水', spec:'500ml/瓶', bc:'6916789012162', cat:'care', unit:'瓶', stock:12, safe:20, cost:26, price:39.9, loc:'F-02-01', batch:'B2610', expiry:'2026-11-20', supplier:'恒美日化', abc:'C', sales30:19, lead:5 },
+    ],
+    docs: [
+      { id:'RK-20261025-0031', type:'inbound', code:'RK20261025007', partner:'华东食品供应链', status:'pending', amount:2860, createdAt:'2026-10-25 09:12', owner:'林知夏', source:'ocr',
+        items:[{ pid:'P1001', qty:60, price:18.5 },{ pid:'P1006', qty:10, price:96 },{ pid:'P1005', qty:8, price:59 }] },
+      { id:'CK-20261025-0032', type:'outbound', code:'CK20261025009', partner:'拾货便利 · 中山路店', status:'done', amount:4210, createdAt:'2026-10-25 08:40', owner:'周航', source:'scan',
+        items:[{ pid:'P1002', qty:30, price:32 },{ pid:'P1006', qty:20, price:138 }] },
+      { id:'RK-20261025-0033', type:'inbound', code:'RK20261025010', partner:'鲜达冷链', status:'approved', amount:5240, createdAt:'2026-10-25 07:55', owner:'林知夏', source:'ocr',
+        items:[{ pid:'P1003', qty:80, price:52 },{ pid:'P1004', qty:20, price:46 }] },
+      { id:'PD-20261024-0018', type:'check', code:'PD20261024004', partner:'华东仓 · A 库区', status:'pending', amount:0, createdAt:'2026-10-24 22:10', owner:'陈默', source:'scan',
+        items:[{ pid:'P1006', qty:-3, price:0 },{ pid:'P1010', qty:-6, price:0 },{ pid:'P1016', qty:2, price:0 }] },
+      { id:'DB-20261024-0016', type:'transfer', code:'DB20261024002', partner:'华东仓 → 城西前置仓', status:'done', amount:0, createdAt:'2026-10-24 16:30', owner:'周航', source:'manual',
+        items:[{ pid:'P1001', qty:24, price:0 },{ pid:'P1012', qty:12, price:0 }] },
+      { id:'CK-20261024-0030', type:'outbound', code:'CK20261024008', partner:'拾货便利 · 江滨店', status:'done', amount:1980, createdAt:'2026-10-24 14:05', owner:'陈默', source:'scan',
+        items:[{ pid:'P1011', qty:20, price:46 },{ pid:'P1015', qty:25, price:42 }] },
+    ],
+    todos: [
+      { id:'T1', type:'approve', title:'待审：入库单 RK20261025007', desc:'华东食品供应链 · 3 个品 · ¥2,860.00', at:'09:12', tag:'审批' },
+      { id:'T2', type:'check',   title:'盘点差异待确认 PD20261024004', desc:'A 库区 3 个品存在账实差异，最大差额 -6', at:'昨晚 22:10', tag:'盘点' },
+      { id:'T3', type:'warn',    title:'2 个 SKU 已低于安全库存', desc:'Type-C 数据线已售罄，农夫山泉接近下限', at:'07:00', tag:'补货' },
+      { id:'T4', type:'expiry',  title:'伊利安慕希 14 天后到期', desc:'C-01-01 库位 22 箱，建议促销或调拨', at:'06:30', tag:'效期' },
+      { id:'T5', type:'approve', title:'周航 @了你 在出库单 CK20261025009', desc:'“江滨店临时加单，麻烦优先放行”', at:'08:44', tag:'协同' },
+    ],
+    notices: [
+      { id:'N1', t:'识别引擎已就绪', d:'OCR 中文模型已缓存，本次会话识别 0 张单据', time:'刚刚', kind:'ok' },
+      { id:'N2', t:'低库存预警', d:'P1010 绿联 Type-C 数据线 库存为 0', time:'2 小时前', kind:'warn' },
+      { id:'N3', t:'审批通过', d:'RK20261025010 已由 王砚 审核通过', time:'1 小时前', kind:'ok' },
+      { id:'N4', t:'效期提醒', d:'P1004 伊利安慕希酸奶 剩余 14 天', time:'今天 06:30', kind:'warn' },
+    ],
+    trend: [
+      { d:'10-19', in:186, out:142 }, { d:'10-20', in:240, out:198 },
+      { d:'10-21', in:164, out:220 }, { d:'10-22', in:312, out:186 },
+      { d:'10-23', in:208, out:264 }, { d:'10-24', in:276, out:238 },
+      { d:'10-25', in:168, out:154 },
+    ],
+  },
+
+  /* ---------------- 空白 ---------------- */
+  blank: {
+    key: 'blank',
+    name: '空白空间',
+    desc: '从零开始，自己建品类和物料',
+    hue: '220',
+    glyph: 'grid',
+    tip: '适合已有自己的品类体系，想手动录入的场景',
+    labels: { product: '物料', productPage: '物料档案', inv: '库存', doc: '单据', scan: '扫码作业' },
+    cats: {
+      general: { name: '未分类', hue: '220', glyph: 'box' },
+    },
+    suppliers: [],
+    products: [],
+    docs: [],
+    todos: [],
+    notices: [],
+    trend: [],
+  },
+};
+
+const TEMPLATE_LIST = ['milktea', 'market', 'blank'];

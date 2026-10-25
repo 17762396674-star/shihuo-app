@@ -287,7 +287,7 @@ const Engine = (() => {
 
     // 供应商
     let supplier = '';
-    for (const s of SUPPLIERS) {
+    for (const s of Store.suppliers()) {
       if (compact.indexOf(s) >= 0) { supplier = s; break; }
     }
     if (!supplier) {
@@ -356,6 +356,10 @@ const Engine = (() => {
   /* ---------------- 演示模式（离线兜底） ---------------- */
   function demoResult() {
     const ps = Store.products().slice(0, 3);
+    if (!ps.length) {
+      return { demo: true, text: '（当前空间还没有物料，无法演示识别）', confidence: 0, lines: [],
+        fields: { supplier: '', code: '', date: todayStr(), amount: 0, items: [], lineCount: 0 }, ms: 0 };
+    }
     const items = ps.map(p => ({
       pid: p.id, name: p.name, spec: p.spec,
       qty: [24, 12, 30][ps.indexOf(p)] || 10,
@@ -363,7 +367,7 @@ const Engine = (() => {
     }));
     const amount = items.reduce((s, i) => s + i.qty * i.price, 0);
     const rows = items.map(i => i.name + '  ' + i.spec + '  ' + i.qty + '  ' + i.price.toFixed(2)).join('\n');
-    const text = '送货单\n' + SUPPLIERS[0] + '\n单号：RK' + todayStr().replace(/-/g, '') + '001\n日期：' + todayStr() +
+    const text = '送货单\n' + (Store.suppliers()[0] || '示例供应商') + '\n单号：RK' + todayStr().replace(/-/g, '') + '001\n日期：' + todayStr() +
       '\n' + rows + '\n合计：' + amount.toFixed(2);
     return {
       demo: true,
@@ -371,7 +375,7 @@ const Engine = (() => {
       confidence: 0,
       lines: [],
       fields: {
-        supplier: SUPPLIERS[0],
+        supplier: Store.suppliers()[0] || '示例供应商',
         code: 'RK' + todayStr().replace(/-/g, '') + '001',
         date: todayStr(),
         amount: amount,

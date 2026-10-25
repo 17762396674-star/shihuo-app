@@ -504,6 +504,7 @@
 .pc-foot { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
 .pc-foot .mono { font-size: 10.5px; color: var(--ink-3); }
 .pc-foot b { font-size: 14px; font-weight: 600; letter-spacing: -.02em; }
+.pc-cost { font-size: 10px; font-weight: 400; color: var(--ink-3); font-style: normal; margin-right: 3px; }
 
 /* ---------------- 协同 ---------------- */
 .collab-grid { display: grid; grid-template-columns: 1.15fr 1fr; gap: 13px; align-items: start; }

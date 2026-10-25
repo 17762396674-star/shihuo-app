@@ -216,7 +216,9 @@ const UI = (() => {
 
   /* ---------------- 条形码（EAN-13 视觉） ---------------- */
   function ean13(code12) {
-    const d = String(code12).replace(/\D/g, '').padEnd(12, '0').slice(0, 12);
+    const digits = String(code12 || '').replace(/\D/g, '');
+    if (!digits) return '';
+    const d = digits.padEnd(12, '0').slice(0, 12);
     let sum = 0;
     for (let i = 0; i < 12; i++) sum += Number(d[i]) * (i % 2 ? 3 : 1);
     return d + ((10 - (sum % 10)) % 10);
@@ -226,6 +228,7 @@ const UI = (() => {
     opt = opt || {};
     const h = opt.h || 42;
     const d = ean13(code);
+    if (!d) return '<div class="bc-none">无条码 · 手动录入</div>';
     const L = ['0001101','0011001','0010011','0111101','0100011','0110001','0101111','0111011','0110111','0001011'];
     const G = ['0100111','0110011','0011011','0100001','0011101','0111001','0000101','0010001','0001001','0010111'];
     const R = ['1110010','1100110','1101100','1000010','1011100','1001110','1010000','1000100','1001000','1110100'];
@@ -252,13 +255,18 @@ const UI = (() => {
 
   /* ---------------- 品类视觉 ---------------- */
   function productTile(p, size) {
-    const c = CATS[p.cat] || CATS.daily;
+    const c = (typeof Store !== 'undefined' && Store.cat)
+      ? Store.cat(p.cat)
+      : { hue: '220', glyph: 'box' };
     const glyph = {
       bottle: '<path d="M10 3h4v3l1.6 2.2A4 4 0 0 1 16.4 11v8.6a1.4 1.4 0 0 1-1.4 1.4H9a1.4 1.4 0 0 1-1.4-1.4V11a4 4 0 0 1 .8-2.8L10 6z"/>',
       bag: '<path d="M6 8h12l-1 12H7z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/>',
       chip: '<rect x="6" y="6" width="12" height="12" rx="2.4"/><path d="M10 3v3M14 3v3M10 18v3M14 18v3M3 10h3M3 14h3M18 10h3M18 14h3"/>',
       drop: '<path d="M12 3.4s5.6 6 5.6 9.8A5.6 5.6 0 0 1 6.4 13.2C6.4 9.4 12 3.4 12 3.4z"/>',
       box: '<path d="M20 8.4 12 4 4 8.4 12 12.8z"/><path d="M4 8.4v7.2L12 20l8-4.4V8.4"/>',
+      leaf: '<path d="M20 4.5c0 8.5-6 14-13.5 14C6.5 10 12.5 4.5 20 4.5z"/><path d="M4 20.5c3-6.5 7.5-11 13.5-14"/>',
+      cup: '<path d="M6.8 7h10.4l-1.3 12.1a2 2 0 0 1-2 1.9H10.1a2 2 0 0 1-2-1.9z"/><path d="M9 3.6h6M5.6 7h12.8"/>',
+      grid: '<rect x="4" y="4" width="7" height="7" rx="2"/><rect x="13" y="4" width="7" height="7" rx="2"/><rect x="4" y="13" width="7" height="7" rx="2"/><rect x="13" y="13" width="7" height="7" rx="2"/>',
     }[c.glyph] || '';
     return '<div class="ptile ' + (size || '') + '" style="--h:' + c.hue + '">' +
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">' + glyph + '</svg>' +
