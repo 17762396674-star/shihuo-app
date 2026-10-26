@@ -92,17 +92,48 @@ const Engine = (() => {
       return null;
     }
     try {
-      const ctx = canvas.getContext('2d', { willReadFrequently: true });
-      const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const lum = new Z.RGBLuminanceSource(img.data, canvas.width, canvas.height);
-      const bmp = new Z.BinaryBitmap(new Z.HybridBinarizer(lum));
+      // 增强解码：TRY_HARDER 提升模糊/低对比度识别，限定常见一维码+二维码格式减少误判
+      const hints = new Map();
+      hints.set(Z.DecodeHintType.TRY_HARDER, true);
+      hints.set(Z.DecodeHintType.POSSIBLE_FORMATS, [
+        Z.BarcodeFormat.EAN_13, Z.BarcodeFormat.EAN_8,
+        Z.BarcodeFormat.CODE_128, Z.BarcodeFormat.CODE_39,
+        Z.BarcodeFormat.UPC_A, Z.BarcodeFormat.UPC_E,
+        Z.BarcodeFormat.ITF, Z.BarcodeFormat.QR_CODE,
+      ]);
       const reader = new Z.MultiFormatReader();
-      const res = reader.decode(bmp);
+      const res = decodeZXing(Z, reader, canvas, hints);
       state.zxingUnavailable = false;
       return { code: res.getText(), format: String(res.getBarcodeFormat()), engine: 'zxing' };
     } catch (e) {
       return null;
     }
+  }
+
+  // 用 ZXing 解码一张画布；条码过小时放大重试，提升实时画面的命中率
+  function decodeZXing(Z, reader, canvas, hints) {
+    const scales = [1, 1.5, 2];
+    for (const k of scales) {
+      try {
+        let src = canvas;
+        if (k !== 1) {
+          const c2 = document.createElement('canvas');
+          c2.width = Math.round(canvas.width * k);
+          c2.height = Math.round(canvas.height * k);
+          const cx = c2.getContext('2d');
+          // 关键：关闭平滑，用最近邻放大，保持条码黑白边缘锐利（平滑会让条纹糊掉）
+          cx.imageSmoothingEnabled = false;
+          cx.drawImage(canvas, 0, 0, c2.width, c2.height);
+          src = c2;
+        }
+        const ctx = src.getContext('2d', { willReadFrequently: true });
+        const img = ctx.getImageData(0, 0, src.width, src.height);
+        const lum = new Z.RGBLuminanceSource(img.data, src.width, src.height);
+        const bmp = new Z.BinaryBitmap(new Z.HybridBinarizer(lum));
+        return reader.decode(bmp, hints);
+      } catch (e) { /* 下一尺度重试 */ }
+    }
+    throw new Error('decode failed');
   }
 
   function fileToCanvas(file, maxSide) {
