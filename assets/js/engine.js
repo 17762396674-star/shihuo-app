@@ -12,7 +12,11 @@ const Engine = (() => {
     tessCore:'https://unpkg.com/tesseract.js-core@5.1.1/',
     tessLang:'https://unpkg.com/@tesseract.js-data/chi_sim@1.0.0/4.0.0',
     tessLangAlt:'https://tessdata.projectnaptha.com/4.0.0',
-    zxing:   'https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js',
+    zxing:   'https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js',
+    zxingAlt: [
+      'https://fastly.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js',
+      'https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js',
+    ],
   };
 
   const state = {
@@ -20,6 +24,7 @@ const Engine = (() => {
     workerPromise: null,
     zxing: null,
     zxingPromise: null,
+    zxingUnavailable: false,
     demo: false,
     lang: 'chi_sim',
     stream: null,
@@ -42,10 +47,20 @@ const Engine = (() => {
   async function loadZXing() {
     if (window.ZXing) return window.ZXing;
     if (!state.zxingPromise) {
-      state.zxingPromise = loadScript(CDN.zxing).then(() => {
-        state.zxing = window.ZXing;
-        return state.zxing;
-      });
+      // 多源轮询：主源失败自动尝试备选源（unpkg 的 @zxing 某些网络下不通）
+      const sources = [CDN.zxing].concat(CDN.zxingAlt);
+      state.zxingPromise = (async () => {
+        let lastErr = null;
+        for (const src of sources) {
+          try {
+            await loadScript(src);
+            state.zxing = window.ZXing;
+            return state.zxing;
+          } catch (e) { lastErr = e; }
+        }
+        state.zxingPromise = null;  // 允许下次重试
+        throw lastErr || new Error('条码解码库加载失败');
+      })();
     }
     return state.zxingPromise;
   }
@@ -68,14 +83,22 @@ const Engine = (() => {
       } catch (e) { /* 落到 ZXing */ }
     }
     // ZXing 兜底
+    let Z;
     try {
-      const Z = await loadZXing();
+      Z = await loadZXing();
+    } catch (e) {
+      // 解码库本身加载失败（CDN 网络问题）——与「图片里没条码」区分开
+      state.zxingUnavailable = true;
+      return null;
+    }
+    try {
       const ctx = canvas.getContext('2d', { willReadFrequently: true });
       const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
       const lum = new Z.RGBLuminanceSource(img.data, canvas.width, canvas.height);
       const bmp = new Z.BinaryBitmap(new Z.HybridBinarizer(lum));
       const reader = new Z.MultiFormatReader();
       const res = reader.decode(bmp);
+      state.zxingUnavailable = false;
       return { code: res.getText(), format: String(res.getBarcodeFormat()), engine: 'zxing' };
     } catch (e) {
       return null;
@@ -392,5 +415,6 @@ const Engine = (() => {
     decodeFile, decodeCanvas, startCamera, stopCamera, fileToCanvas,
     get isDemo() { return state.demo; },
     get hasDetector() { return hasNativeDetector(); },
+    get zxingDown() { return state.zxingUnavailable; },
   };
 })();

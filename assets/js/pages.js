@@ -408,6 +408,14 @@ function mountBarcode(el) {
         badge.innerHTML = UI.icon('camera') + '启动摄像头…';
         await Engine.startCamera(video, (tick, r, dup) => {
           if (r && !dup) acceptCode(r.code, true);
+          else if (!r && Engine.zxingDown && tick === 1) {
+            // 解码库加载失败，明确提示，避免一直「扫不出」却无反馈
+            Engine.stopCamera(); ScanState.camOn = false;
+            video.style.display = 'none'; idle.style.display = ''; line.style.display = 'none';
+            camBtn.innerHTML = UI.icon('camera') + '开启摄像头';
+            badge.innerHTML = UI.icon('alert') + '解码库不可用';
+            UI.toast('条码解码库加载失败，请检查网络后重试，或改用「上传条码图」', 'err');
+          }
         });
         ScanState.camOn = true;
         video.style.display = 'block';
