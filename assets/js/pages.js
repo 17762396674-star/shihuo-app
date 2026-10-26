@@ -368,8 +368,22 @@ function mountBarcode(el) {
   function acceptCode(code, fromCamera) {
     const p = Store.byBarcode(code);
     if (!p) {
+      // 未匹配：提供一键建档入口
       UI.toast('未匹配到商品：' + code, 'warn');
       badge.innerHTML = UI.icon('alert') + '未匹配 ' + code;
+      UI.open({
+        variant: 'modal',
+        title: '未匹配到商品',
+        sub: '条码 ' + code,
+        body: '<p class="confirm-msg">商品档案里还没有这个条码。要不要现在为它建档？</p>',
+        foot: '<button class="btn ghost" data-close>取消</button><button class="btn primary" id="mkNew">去建档</button>',
+        onMount(l) {
+          l.querySelector('#mkNew').addEventListener('click', () => {
+            UI.close();
+            openProductForm({ bc: code });
+          });
+        },
+      });
       return;
     }
     ScanState.lastProduct = { pid: p.id, code: code, at: Date.now() };
@@ -430,7 +444,9 @@ function mountBarcode(el) {
         variant: 'modal',
         title: '手动输入条码',
         body: '<input class="input big" id="manCode" placeholder="输入 13 位条码" inputmode="numeric" value="">' +
-              '<p class="hint-line">示例：' + Store.products()[0].bc + '（' + Store.products()[0].name + '）</p>',
+              (Store.products().length
+                ? '<p class="hint-line">示例：' + Store.products()[0].bc + '（' + Store.products()[0].name + '）</p>'
+                : '<p class="hint-line">当前空间还没有商品，先在「商品档案」建档</p>'),
         foot: '<button class="btn ghost" data-close>取消</button><button class="btn primary" id="manOk">识别</button>',
         onMount(l) {
           const i = l.querySelector('#manCode');
@@ -826,6 +842,7 @@ Pages.inventory = {
         '<div class="chips">' + chips.map(c =>
           '<button class="chip ' + (InvState.filter === c.k ? 'on' : '') + '" data-f="' + c.k + '">' + c.t + '</button>').join('') + '</div>' +
         '<button class="btn soft sm only-d" id="addProd">' + UI.icon('plus') + '新增商品</button>' +
+        '<button class="btn ghost sm" id="stockLog">' + UI.icon('list') + '库存流水</button>' +
       '</div>' +
 
       '<div class="card tbl-card">' +
@@ -871,7 +888,9 @@ Pages.inventory = {
     const cf = el.querySelector('#clearF');
     if (cf) cf.addEventListener('click', () => { InvState.q = ''; InvState.filter = 'all'; App.refresh(); });
     const ap = el.querySelector('#addProd');
-    if (ap) ap.addEventListener('click', () => UI.toast('新增商品会调用「拍照识别条码」自动填充', 'ok'));
+    if (ap) ap.addEventListener('click', () => openProductForm());
+    const sl = el.querySelector('#stockLog');
+    if (sl) sl.addEventListener('click', () => openStockLog());
   },
 };
 
@@ -960,9 +979,9 @@ function openDoc(id) {
       '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>商品</th><th>数量</th><th>单价</th><th>小计</th></tr></thead><tbody>' +
         d.items.map(it => {
           const p = Store.product(it.pid) || { name: it.pid, spec: '' };
-          return '<tr><td>' + p.name + '<i class="sub">' + (p.spec || '') + '</i></td>' +
-            '<td>' + it.qty + '</td><td>' + (it.price ? UI.money(it.price) : '—') + '</td>' +
-            '<td>' + (it.price ? UI.money(it.price * it.qty) : '—') + '</td></tr>';
+          return '<tr><td data-l="商品">' + p.name + '<i class="sub">' + (p.spec || '') + '</i></td>' +
+            '<td data-l="数量">' + it.qty + '</td><td data-l="单价">' + (it.price ? UI.money(it.price) : '—') + '</td>' +
+            '<td data-l="小计">' + (it.price ? UI.money(it.price * it.qty) : '—') + '</td></tr>';
         }).join('') + '</tbody></table></div>' +
       (d.amount ? '<div class="doc-total"><span>合计</span><b>' + UI.money(d.amount) + '</b></div>' : '') +
       '<div class="doc-timeline">' +
@@ -1017,7 +1036,7 @@ Pages.products = {
     el.querySelectorAll('[data-prod]').forEach(c => c.addEventListener('click', () => openProduct(c.dataset.prod)));
     ['#pAdd', '#pAdd2'].forEach(sel => {
       const b = el.querySelector(sel);
-      if (b) b.addEventListener('click', () => UI.toast('新增物料：填名称 / 规格 / 库位，条码可扫码带入', 'ok'));
+      if (b) b.addEventListener('click', () => openProductForm());
     });
     const q = el.querySelector('#pQ');
     if (q) q.addEventListener('input', () => {
@@ -1030,6 +1049,137 @@ Pages.products = {
     });
   },
 };
+
+/* =========================================================
+ * 建档表单（新增商品 / 物料）
+ * ======================================================= */
+function openProductForm(prefill) {
+  prefill = prefill || {};
+  const cats = Store.cats();
+  const catKeys = Object.keys(cats);
+  const catOpts = catKeys.map(k =>
+    '<option value="' + k + '"' + (prefill.cat === k ? ' selected' : '') + '>' + cats[k].name + '</option>').join('');
+  const sups = Store.suppliers();
+  const supOpts = sups.map(s =>
+    '<option value="' + s + '"' + (prefill.supplier === s ? ' selected' : '') + '>' + s + '</option>').join('');
+
+  UI.open({
+    variant: 'modal',
+    title: '新增' + Store.labels().product,
+    sub: '填好后即可在扫码、入库时被匹配',
+    body:
+      '<div class="field-grid">' +
+        '<label class="field span2"><i>名称 *</i><input id="nfName" placeholder="例如：冰露纯净水" value="' + (prefill.name || '') + '"></label>' +
+        '<label class="field"><i>规格</i><input id="nfSpec" placeholder="例如：550ml×24瓶" value="' + (prefill.spec || '') + '"></label>' +
+        '<label class="field"><i>单位</i><input id="nfUnit" placeholder="箱 / 件 / 包" value="' + (prefill.unit || '件') + '"></label>' +
+        '<label class="field span2"><i>条码</i>' +
+          '<div class="bc-row"><input id="nfBc" placeholder="13 位条码" inputmode="numeric" value="' + (prefill.bc || '') + '">' +
+          '<button class="btn soft sm" id="nfScan">' + UI.icon('scan') + '扫码</button></div></label>' +
+        '<label class="field"><i>品类</i><select id="nfCat">' + catOpts + '</select></label>' +
+        '<label class="field"><i>供应商</i><select id="nfSup"><option value="">未指定</option>' + supOpts + '</select></label>' +
+        '<label class="field"><i>库位</i><input id="nfLoc" placeholder="例如：A-01-03" value="' + (prefill.loc || '') + '"></label>' +
+        '<label class="field"><i>批次</i><input id="nfBatch" placeholder="例如：B2610" value="' + (prefill.batch || '') + '"></label>' +
+        '<label class="field"><i>成本价 ¥</i><input id="nfCost" type="number" step="0.01" min="0" value="' + (prefill.cost || '') + '"></label>' +
+        '<label class="field"><i>零售价 ¥</i><input id="nfPrice" type="number" step="0.01" min="0" value="' + (prefill.price || '') + '"></label>' +
+        '<label class="field"><i>初始库存</i><input id="nfStock" type="number" min="0" value="' + (prefill.stock || 0) + '"></label>' +
+        '<label class="field"><i>安全库存</i><input id="nfSafe" type="number" min="0" value="' + (prefill.safe || 0) + '"></label>' +
+        '<label class="field"><i>效期</i><input id="nfExpiry" type="date" value="' + (prefill.expiry || '') + '"></label>' +
+      '</div>',
+    foot: '<button class="btn ghost" data-close>取消</button><button class="btn primary" id="nfOk">保存</button>',
+    onMount(l) {
+      l.querySelector('#nfOk').addEventListener('click', () => {
+        const name = l.querySelector('#nfName').value.trim();
+        if (!name) { UI.toast('请填写名称', 'warn'); return; }
+        const p = Store.addProduct({
+          name: name,
+          spec: l.querySelector('#nfSpec').value.trim(),
+          unit: l.querySelector('#nfUnit').value.trim() || '件',
+          bc: l.querySelector('#nfBc').value.trim(),
+          cat: l.querySelector('#nfCat').value,
+          supplier: l.querySelector('#nfSup').value,
+          loc: l.querySelector('#nfLoc').value.trim(),
+          batch: l.querySelector('#nfBatch').value.trim(),
+          cost: Number(l.querySelector('#nfCost').value) || 0,
+          price: Number(l.querySelector('#nfPrice').value) || 0,
+          stock: Number(l.querySelector('#nfStock').value) || 0,
+          safe: Number(l.querySelector('#nfSafe').value) || 0,
+          expiry: l.querySelector('#nfExpiry').value || '',
+        });
+        if (p.stock > 0) Store._logStock(p.id, p.stock, '建档初始库存', 'init');
+        UI.close();
+        UI.toast('已新增「' + p.name + '」', 'ok');
+        App.refresh();
+      });
+      l.querySelector('#nfScan').addEventListener('click', async () => {
+        // 打开摄像头扫码，识别到条码后回填
+        UI.open({
+          variant: 'modal',
+          title: '扫描条码',
+          sub: '对准商品条码',
+          body: '<div class="cam-box"><video id="nfCam" playsinline muted></video><span class="vf-c tl"></span><span class="vf-c tr"></span><span class="vf-c bl"></span><span class="vf-c br"></span></div>',
+          foot: '<button class="btn ghost" data-close>关闭</button><button class="btn soft" id="nfUpload">上传图片</button>',
+          onMount(l2) {
+            const v = l2.querySelector('#nfCam');
+            let got = false;
+            Engine.startCamera(v, (tick, r, dup) => {
+              if (r && !dup && !got) {
+                got = true;
+                Engine.stopCamera();
+                l.querySelector('#nfBc').value = r.code;
+                UI.close();
+                UI.toast('已识别条码 ' + r.code, 'ok');
+              }
+            }).catch(() => {});
+            l2.querySelector('#nfUpload').addEventListener('click', () => {
+              const inp = document.createElement('input');
+              inp.type = 'file'; inp.accept = 'image/*';
+              inp.onchange = async () => {
+                if (!inp.files.length) return;
+                const r = await Engine.decodeFile(inp.files[0]);
+                if (r) {
+                  Engine.stopCamera(); got = true;
+                  l.querySelector('#nfBc').value = r.code;
+                  UI.close();
+                  UI.toast('已识别条码 ' + r.code, 'ok');
+                } else {
+                  UI.toast('未识别到条码', 'warn');
+                }
+              };
+              inp.click();
+            });
+          },
+        });
+        document.getElementById('scrim').addEventListener('click', () => Engine.stopCamera());
+      });
+    },
+  });
+}
+
+/* =========================================================
+ * 库存流水弹层
+ * ======================================================= */
+function openStockLog() {
+  const log = Store.stocklog();
+  UI.open({
+    title: '库存流水',
+    sub: log.length + ' 条记录 · 每笔库存变动都可追溯',
+    body: log.length
+      ? '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>时间</th><th>商品</th><th>变动</th><th>结存</th><th>来源</th></tr></thead><tbody>' +
+        log.map(x => {
+          const d = new Date(x.t);
+          const time = pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+          const up = x.delta > 0;
+          return '<tr>' +
+            '<td data-l="时间" class="muted mono">' + time + '</td>' +
+            '<td data-l="商品"><b>' + x.name + '</b></td>' +
+            '<td data-l="变动" class="' + (up ? 'ok-t' : 'danger-t') + '"><b>' + (up ? '+' : '') + x.delta + '</b></td>' +
+            '<td data-l="结存">' + x.after + '</td>' +
+            '<td data-l="来源" class="muted">' + x.reason + '</td>' +
+          '</tr>';
+        }).join('') + '</tbody></table></div>'
+      : '<div class="empty">' + UI.icon('list') + '<b>暂无流水</b><p>入库、出库、调拨、盘点、库存调整都会记录在这里</p></div>',
+  });
+}
 
 /* =========================================================
  * 6. 协同

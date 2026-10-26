@@ -42,7 +42,7 @@ const Store = {
             tip: TEMPLATES.market.tip,
             data: {
               products: d.products, docs: d.docs || [], todos: d.todos || [],
-              notices: d.notices || [], trend: d.trend || [], scans: [], ocrCount: 0,
+              notices: d.notices || [], trend: d.trend || [], scans: [], ocrCount: 0, stocklog: [],
             },
           });
         }
@@ -103,6 +103,7 @@ const Store = {
         trend: clone(T.trend),
         scans: [],
         ocrCount: 0,
+        stocklog: [],
       },
     };
   },
@@ -157,7 +158,7 @@ const Store = {
   /* ---------------- 当前空间的数据 ---------------- */
   get db() {
     const w = this.ws();
-    return w ? w.data : { products: [], docs: [], todos: [], notices: [], trend: [], scans: [], ocrCount: 0 };
+    return w ? w.data : { products: [], docs: [], todos: [], notices: [], trend: [], scans: [], ocrCount: 0, stocklog: [] };
   },
 
   cats() { const w = this.ws(); return (w && w.cats) || TEMPLATES.blank.cats; },
@@ -185,21 +186,103 @@ const Store = {
       p.id.toLowerCase().includes(q) || (p.spec || '').includes(q) || (p.loc || '').toLowerCase().includes(q));
   },
 
-  adjustStock(pid, delta) {
+  adjustStock(pid, delta, reason) {
     const p = this.product(pid);
     if (!p) return null;
     p.stock = Math.max(0, p.stock + delta);
+    this._logStock(pid, delta, reason || (delta >= 0 ? '盘盈' : '报损'), 'adjust');
     this.save();
     return p;
+  },
+
+  /* ---------------- 建档 ---------------- */
+  addProduct(prod) {
+    const ps = this.db.products;
+    const next = this._nextProductId();
+    const p = Object.assign({
+      id: next, name: '', spec: '', bc: '', cat: '', unit: '件', stock: 0, safe: 0,
+      cost: 0, price: 0, loc: '', batch: '', expiry: '', supplier: '', abc: 'B', sales30: 0, lead: 3,
+    }, prod, { id: next });
+    if (!p.cat) {
+      const firstCat = Object.keys(this.cats())[0] || 'general';
+      p.cat = firstCat;
+    }
+    ps.push(p);
+    this.save();
+    return p;
+  },
+
+  _nextProductId() {
+    const ps = this.db.products;
+    const prefix = this.ws().type === 'market' ? 'P' : 'M';
+    let max = 0;
+    ps.forEach(p => {
+      const m = String(p.id || '').match(/^[A-Z]+(\d+)$/);
+      if (m) max = Math.max(max, Number(m[1]));
+    });
+    return prefix + String(max + 1).padStart(4, '0');
+  },
+
+  /* ---------------- 库存流水 ---------------- */
+  stocklog() { return this.db.stocklog || []; },
+
+  _logStock(pid, delta, reason, source) {
+    const p = this.product(pid);
+    if (!p) return;
+    if (!this.db.stocklog) this.db.stocklog = [];
+    this.db.stocklog.unshift({
+      t: Date.now(),
+      pid: pid,
+      name: p.name,
+      delta: delta,
+      after: p.stock,
+      reason: reason || '',
+      source: source || 'manual',
+    });
+    this.db.stocklog = this.db.stocklog.slice(0, 200);
+  },
+
+  // 统一过账：任何库存变动都走这里，记录流水，保证账实可追溯
+  _applyStock(pid, delta, reason, source) {
+    const p = this.product(pid);
+    if (!p) return;
+    p.stock = Math.max(0, p.stock + delta);
+    this._logStock(pid, delta, reason, source);
   },
 
   addDoc(doc) {
     this.db.docs.unshift(doc);
     if (doc.status === 'done' || doc.status === 'approved') {
-      doc.items.forEach(it => this.adjustStock(it.pid, doc.type === 'inbound' ? it.qty : -it.qty));
+      this._postDoc(doc);
     }
     this.save();
     return doc;
+  },
+
+  // 单据审批通过后，按单据类型正确过账
+  _postDoc(doc) {
+    doc.items.forEach(it => {
+      const p = this.product(it.pid);
+      if (!p) return;
+      let delta = 0;
+      if (doc.type === 'inbound') delta = it.qty;
+      else if (doc.type === 'outbound' || doc.type === 'transfer') delta = -it.qty;
+      else if (doc.type === 'check') delta = it.qty; // 盘点：差异数（盘盈为正、盘亏为负）
+      if (delta) this._applyStock(it.pid, delta, doc.id + ' · ' + (DOC_TYPE ? DOC_TYPE[doc.type] : doc.type), doc.type);
+    });
+  },
+
+  // 驳回时，撤销该单据此前已经过的账
+  _reverseDoc(doc) {
+    doc.items.forEach(it => {
+      const p = this.product(it.pid);
+      if (!p) return;
+      let delta = 0;
+      if (doc.type === 'inbound') delta = -it.qty;
+      else if (doc.type === 'outbound' || doc.type === 'transfer') delta = it.qty;
+      else if (doc.type === 'check') delta = -it.qty;
+      if (delta) this._applyStock(it.pid, delta, doc.id + ' · 驳回回滚', doc.type);
+    });
   },
 
   setDocStatus(id, status) {
@@ -207,8 +290,13 @@ const Store = {
     if (!d) return null;
     const was = d.status;
     d.status = status;
-    if (status === 'approved' && was !== 'approved' && d.type === 'inbound') {
-      d.items.forEach(it => this.adjustStock(it.pid, it.qty));
+    // 通过：从未过账状态进入已过账，统一按类型过账
+    if (status === 'approved' && was !== 'approved' && was !== 'done') {
+      this._postDoc(d);
+    }
+    // 驳回：如果此前已过账，则回滚
+    else if ((status === 'draft' || status === 'rejected') && (was === 'approved' || was === 'done')) {
+      this._reverseDoc(d);
     }
     this.save();
     return d;

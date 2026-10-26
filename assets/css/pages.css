@@ -358,6 +358,15 @@
   font-size: 13px; outline: none;
 }
 .field input:focus { border-color: var(--brand); background: var(--surface); box-shadow: 0 0 0 3px var(--brand-soft); }
+.field select {
+  height: 38px; padding: 0 11px; border-radius: 11px;
+  border: 1px solid var(--line-strong); background: var(--surface-2);
+  font-size: 13px; outline: none; color: var(--ink);
+}
+.field select:focus { border-color: var(--brand); background: var(--surface); box-shadow: 0 0 0 3px var(--brand-soft); }
+.field.span2 { grid-column: span 2; }
+.bc-row { display: flex; gap: 8px; }
+.bc-row input { flex: 1; }
 
 .mini-input {
   width: 62px; height: 30px; padding: 0 8px; text-align: center;

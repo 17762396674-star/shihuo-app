@@ -102,6 +102,7 @@ img { max-width: 100%; display: block; }
 .brand-t { color: var(--brand-ink); }
 .warn-t { color: var(--warn); }
 .danger-t { color: var(--danger); }
+.ok-t { color: var(--ok); }
 .ta-r { text-align: right; }
 .bad { color: var(--danger); }
 .warn { color: var(--warn); }
