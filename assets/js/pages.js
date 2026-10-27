@@ -5,7 +5,7 @@
 
 const ScanState = { tab: 'barcode', mode: 'inbound', bill: [], lastProduct: null, doc: null, docImg: null, text: null, camOn: false };
 
-const DOC_TYPE = { inbound: '入库单', outbound: '出库单', transfer: '调拨单', check: '盘点单' };
+// 注：DOC_TYPE 已定义在 data.js（数据层），此处复用，避免 const 重复声明
 const DOC_STATUS = {
   draft:    { t: '草稿',   c: 'muted' },
   pending:  { t: '待审批', c: 'warn' },
