@@ -3,7 +3,7 @@
  * 每个页面导出 { title, sub, render(), mount(el) }
  * =================================================================== */
 
-const ScanState = { tab: 'barcode', bill: [], lastProduct: null, doc: null, docImg: null, text: null, camOn: false };
+const ScanState = { tab: 'barcode', mode: 'inbound', bill: [], lastProduct: null, doc: null, docImg: null, text: null, camOn: false };
 
 const DOC_TYPE = { inbound: '入库单', outbound: '出库单', transfer: '调拨单', check: '盘点单' };
 const DOC_STATUS = {
@@ -304,8 +304,13 @@ function recentScans() {
 function renderBarcodeTab() {
   const r = ScanState.lastProduct;
   const p = r ? Store.product(r.pid) : null;
+  const isOut = ScanState.mode === 'outbound';
 
   return '<div class="scan-wrap">' +
+    '<div class="mode-bar">' +
+      '<button class="mode-btn ' + (!isOut ? 'on' : '') + '" data-mode="inbound">' + UI.icon('downArrow') + '扫码入库</button>' +
+      '<button class="mode-btn ' + (isOut ? 'on' : '') + '" data-mode="outbound">' + UI.icon('up') + '扫码出库</button>' +
+    '</div>' +
     '<div class="scan-stage">' +
       '<div class="viewfinder" id="vf">' +
         '<video id="cam" playsinline muted></video>' +
@@ -330,7 +335,7 @@ function renderBarcodeTab() {
             '</div>' +
             '<div class="rc-stock"><div><i>当前库存</i><b>' + p.stock + ' ' + p.unit + '</b></div>' +
               '<div><i>库位</i><b>' + p.loc + '</b></div><div><i>成本</i><b>' + UI.money(p.cost) + '</b></div></div>' +
-            '<div class="rc-qty"><span>入库数量</span>' +
+            '<div class="rc-qty"><span>' + (isOut ? '出库数量' : '入库数量') + '</span>' +
               '<div class="stepper"><button id="qDec">' + UI.icon('minus') + '</button>' +
               '<input id="qVal" type="number" value="1" min="1" inputmode="numeric"><button id="qInc">' + UI.icon('plus') + '</button></div>' +
             '</div>' +
@@ -339,7 +344,7 @@ function renderBarcodeTab() {
       '</div>' +
 
       '<div class="card bill-card">' +
-        '<div class="card-head"><div><h3>本单</h3><p>' + ScanState.bill.length + ' 个品</p></div>' +
+        '<div class="card-head"><div><h3>本单</h3><p>' + ScanState.bill.length + ' 个品 · ' + (isOut ? '出库' : '入库') + '</p></div>' +
           (ScanState.bill.length ? '<button class="link danger-t" id="clearBill">清空</button>' : '') + '</div>' +
         (ScanState.bill.length ?
           '<div class="bill-list">' + ScanState.bill.map((it, i) => {
@@ -350,8 +355,8 @@ function renderBarcodeTab() {
               '<button class="icon-btn xs" data-del="' + i + '">' + UI.icon('x') + '</button>' +
             '</div>';
           }).join('') + '</div>' +
-          '<div class="bill-foot"><span>预估金额 <b>' + UI.money(billTotal()) + '</b></span>' +
-          '<button class="btn primary" id="billSubmit">生成入库单</button></div>'
+          '<div class="bill-foot"><span>' + (isOut ? '预估成本' : '预估金额') + ' <b>' + UI.money(billTotal()) + '</b></span>' +
+          '<button class="btn primary" id="billSubmit">' + (isOut ? '生成出库单' : '生成入库单') + '</button></div>'
         : '<div class="bill-empty">还没有商品，扫码后点「加入本单」</div>') +
       '</div>' +
     '</div>' +
@@ -400,6 +405,19 @@ function mountBarcode(el) {
     App.refresh();
   }
   window.__acceptCode = acceptCode;
+
+  // 入库 / 出库模式切换
+  el.querySelectorAll('[data-mode]').forEach(b => {
+    b.addEventListener('click', () => {
+      if (ScanState.mode === b.dataset.mode) return;
+      Engine.stopCamera();
+      ScanState.mode = b.dataset.mode;
+      ScanState.bill = [];
+      ScanState.lastProduct = null;
+      ScanState.camOn = false;
+      App.refresh();
+    });
+  });
 
   if (camBtn) {
     camBtn.addEventListener('click', async () => {
@@ -496,6 +514,16 @@ function mountBarcode(el) {
     addBill.addEventListener('click', () => {
       const pid = ScanState.lastProduct.pid;
       const qty = Math.max(1, Number(qVal.value) || 1);
+      const p = Store.product(pid);
+      // 出库模式：校验库存是否充足
+      if (ScanState.mode === 'outbound') {
+        const inBill = (ScanState.bill.find(x => x.pid === pid) || {}).qty || 0;
+        const stock = p ? p.stock : 0;
+        if (qty + inBill > stock) {
+          UI.toast('库存不足：当前仅 ' + stock + ' ' + (p ? p.unit : '件'), 'warn');
+          return;
+        }
+      }
       const ex = ScanState.bill.find(x => x.pid === pid);
       if (ex) ex.qty += qty; else ScanState.bill.push({ pid, qty });
       ScanState.lastProduct = null;
@@ -515,11 +543,12 @@ function mountBarcode(el) {
   const sub = el.querySelector('#billSubmit');
   if (sub) {
     sub.addEventListener('click', () => {
+      const isOut = ScanState.mode === 'outbound';
       const doc = {
-        id: 'RK-' + todayStr().replace(/-/g, '') + '-' + pad(Math.floor(Math.random() * 900) + 100, 3),
-        type: 'inbound',
-        code: 'RK' + todayStr().replace(/-/g, '') + pad(Store.docs().length + 11, 3),
-        partner: '扫码快速入库',
+        id: (isOut ? 'CK-' : 'RK-') + todayStr().replace(/-/g, '') + '-' + pad(Math.floor(Math.random() * 900) + 100, 3),
+        type: isOut ? 'outbound' : 'inbound',
+        code: (isOut ? 'CK' : 'RK') + todayStr().replace(/-/g, '') + pad(Store.docs().length + 11, 3),
+        partner: isOut ? '扫码拣货出库' : '扫码快速入库',
         status: 'pending',
         amount: billTotal(),
         createdAt: todayStr() + ' ' + pad(new Date().getHours()) + ':' + pad(new Date().getMinutes()),
@@ -529,7 +558,7 @@ function mountBarcode(el) {
       };
       Store.addDoc(doc);
       ScanState.bill = [];
-      UI.toast('已生成入库单，待审批', 'ok');
+      UI.toast(isOut ? '已生成出库单，待审批' : '已生成入库单，待审批', 'ok');
       location.hash = '#/docs';
     });
   }
@@ -957,7 +986,9 @@ Pages.docs = {
             '</div>' +
             (d.status === 'pending' ?
               '<div class="dc-act"><button class="btn soft sm" data-reject="' + d.id + '">驳回</button>' +
-              '<button class="btn primary sm" data-approve="' + d.id + '">通过并入库</button></div>' : '') +
+              '<button class="btn primary sm" data-approve="' + d.id + '">' +
+                (d.type === 'outbound' ? '通过并出库' : d.type === 'transfer' ? '通过并调拨' : d.type === 'check' ? '通过并调整' : '通过并入库') +
+              '</button></div>' : '') +
           '</article>';
         }).join('') : emptyState('doc', '没有单据', '换个类型筛选试试', '')) +
       '</div>';
@@ -1006,7 +1037,8 @@ function openDoc(id) {
         '<div class="tl-item ' + (d.status === 'pending' ? 'cur' : 'done') + '"><i></i><span>提交审批</span><em>' + d.owner + '</em></div>' +
         '<div class="tl-item ' + (d.status === 'approved' || d.status === 'done' ? 'done' : '') + '"><i></i><span>审核通过</span><em>' + (d.status === 'approved' || d.status === 'done' ? '已通过' : '等待中') + '</em></div>' +
       '</div>',
-    foot: (d.status === 'pending' ? '<button class="btn ghost" data-close>关闭</button><button class="btn primary" id="dApproved">通过并入库</button>'
+    foot: (d.status === 'pending' ? '<button class="btn ghost" data-close>关闭</button><button class="btn primary" id="dApproved">' +
+        (d.type === 'outbound' ? '通过并出库' : d.type === 'transfer' ? '通过并调拨' : d.type === 'check' ? '通过并调整' : '通过并入库') + '</button>'
       : '<button class="btn ghost" data-close>关闭</button>'),
     onMount(l) {
       const b = l.querySelector('#dApproved');

@@ -178,6 +178,23 @@
 .scan-tab.on { background: var(--ink); color: var(--bg); font-weight: 500; }
 .scan-tab:hover:not(.on) { background: var(--surface-2); }
 
+.mode-bar {
+  grid-column: 1 / -1;
+  display: inline-flex; gap: 4px; padding: 4px;
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: 15px; margin-bottom: 2px;
+}
+.mode-btn {
+  display: inline-flex; align-items: center; gap: 7px;
+  height: 36px; padding: 0 18px; border-radius: 11px;
+  font-size: 13px; color: var(--ink-2); transition: .16s;
+}
+.mode-btn .ico { width: 16px; height: 16px; }
+.mode-btn.on { color: #fff; font-weight: 500; }
+.mode-btn.on[data-mode="inbound"] { background: var(--brand); }
+.mode-btn.on[data-mode="outbound"] { background: var(--accent); }
+.mode-btn:hover:not(.on) { background: var(--surface-2); }
+
 .scan-wrap { display: grid; grid-template-columns: minmax(0, 1fr) 384px; gap: 14px; align-items: start; }
 .scan-stage { min-width: 0; }
 .scan-side { display: flex; flex-direction: column; gap: 13px; min-width: 0; }
