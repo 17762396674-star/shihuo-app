@@ -71,6 +71,13 @@ const UI = (() => {
   };
   const num = n => Number(n || 0).toLocaleString('zh-CN');
 
+  // HTML 转义：所有拼接进 innerHTML 的动态文本都应过一遍，防 XSS / 属性注入
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, c => (
+      { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+    ));
+  }
+
   /* ---------------- 文件导出 ---------------- */
   function downloadCSV(filename, rows) {
     const BOM = '\uFEFF';  // UTF-8 BOM，让 Excel 正确识别中文
@@ -95,7 +102,8 @@ const UI = (() => {
     const n = document.createElement('div');
     n.className = 'toast ' + (type || '');
     const ic = type === 'ok' ? 'check' : type === 'warn' ? 'alert' : type === 'err' ? 'x' : 'bolt';
-    n.innerHTML = icon(ic) + '<span>' + msg + '</span>';
+    n.innerHTML = icon(ic) + '<span></span>';
+    n.querySelector('span').textContent = msg;  // textContent 防 XSS
     box.appendChild(n);
     requestAnimationFrame(() => n.classList.add('in'));
     setTimeout(() => {
@@ -106,8 +114,15 @@ const UI = (() => {
 
   /* ---------------- 弹层 ---------------- */
   let layerOpen = false;
+  let pendingConfirm = null;  // { resolve, settled } 挂起的 confirm，供 close() 统一 resolve
 
   function close() {
+    // 若有挂起的 confirm，先按「取消」resolve，避免 Promise 悬挂
+    if (pendingConfirm && !pendingConfirm.settled) {
+      pendingConfirm.settled = true;
+      pendingConfirm.resolve(false);
+    }
+    pendingConfirm = null;
     if (!layerOpen) return;
     layerOpen = false;
     const layer = document.getElementById('layer');
@@ -124,7 +139,7 @@ const UI = (() => {
     layer.className = 'layer ' + (opt.variant || 'sheet');
     layer.innerHTML =
       '<div class="layer-head">' +
-        '<div><h3>' + opt.title + '</h3>' + (opt.sub ? '<p>' + opt.sub + '</p>' : '') + '</div>' +
+        '<div><h3>' + esc(opt.title) + '</h3>' + (opt.sub ? '<p>' + esc(opt.sub) + '</p>' : '') + '</div>' +
         '<button class="icon-btn" data-close aria-label="关闭">' + icon('x') + '</button>' +
       '</div>' +
       '<div class="layer-body">' + (opt.body || '') + '</div>' +
@@ -141,16 +156,18 @@ const UI = (() => {
 
   function confirm(title, msg, okText) {
     return new Promise(resolve => {
+      pendingConfirm = { resolve, settled: false };
       const l = open({
         variant: 'modal',
         title: title,
-        body: '<p class="confirm-msg">' + msg + '</p>',
-        foot: '<button class="btn ghost" data-close>取消</button><button class="btn danger" id="cfmOk">' + (okText || '确认') + '</button>',
+        body: '<p class="confirm-msg">' + esc(msg) + '</p>',
+        foot: '<button class="btn ghost" data-close>取消</button><button class="btn danger" id="cfmOk">' + esc(okText || '确认') + '</button>',
       });
-      l.querySelector('#cfmOk').addEventListener('click', () => { close(); resolve(true); });
-      document.getElementById('scrim').addEventListener('click', function once() {
-        document.getElementById('scrim').removeEventListener('click', once);
-        resolve(false);
+      l.querySelector('#cfmOk').addEventListener('click', () => {
+        if (pendingConfirm) pendingConfirm.settled = true;
+        pendingConfirm = null;
+        close();
+        resolve(true);
       });
     });
   }
@@ -236,6 +253,7 @@ const UI = (() => {
   function ean13(code12) {
     const digits = String(code12 || '').replace(/\D/g, '');
     if (!digits) return '';
+    if (digits.length === 13) return digits;  // 已 13 位：原样返回，不重算校验位，避免展示与存储不一致
     const d = digits.padEnd(12, '0').slice(0, 12);
     let sum = 0;
     for (let i = 0; i < 12; i++) sum += Number(d[i]) * (i % 2 ? 3 : 1);
@@ -292,7 +310,7 @@ const UI = (() => {
   }
 
   return {
-    icon, hydrate, money, moneyShort, num, toast, open, close, confirm,
+    icon, hydrate, money, moneyShort, num, esc, toast, open, close, confirm,
     groupedBars, areaLine, donut, hbars, barcode, ean13, productTile,
     downloadCSV,
   };

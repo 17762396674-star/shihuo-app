@@ -603,8 +603,8 @@ function renderDocTab() {
         '</div>' +
         (f ?
           '<div class="field-grid">' +
-            '<label class="field"><i>供应商</i><input id="fSupplier" value="' + (f.supplier || '') + '"></label>' +
-            '<label class="field"><i>单据号</i><input id="fCode" value="' + (f.code || '') + '"></label>' +
+            '<label class="field"><i>供应商</i><input id="fSupplier" value="' + UI.esc(f.supplier || '') + '"></label>' +
+            '<label class="field"><i>单据号</i><input id="fCode" value="' + UI.esc(f.code || '') + '"></label>' +
             '<label class="field"><i>日期</i><input id="fDate" type="date" value="' + (f.date || '') + '"></label>' +
             '<label class="field"><i>合计金额</i><input id="fAmount" type="number" value="' + (f.amount || 0) + '"></label>' +
           '</div>' +
@@ -870,7 +870,7 @@ Pages.inventory = {
 
       '<div class="toolbar">' +
         '<label class="search inline">' + UI.icon('search') +
-          '<input id="invQ" placeholder="搜索名称 / 条码 / 库位" value="' + InvState.q + '">' +
+          '<input id="invQ" placeholder="搜索名称 / 条码 / 库位" value="' + UI.esc(InvState.q) + '">' +
         '</label>' +
         '<div class="chips">' + chips.map(c =>
           '<button class="chip ' + (InvState.filter === c.k ? 'on' : '') + '" data-f="' + c.k + '">' + c.t + '</button>').join('') + '</div>' +
@@ -1105,11 +1105,11 @@ function openProductForm(prefill) {
     sub: '填好后即可在扫码、入库时被匹配',
     body:
       '<div class="field-grid">' +
-        '<label class="field span2"><i>名称 *</i><input id="nfName" placeholder="例如：冰露纯净水" value="' + (prefill.name || '') + '"></label>' +
-        '<label class="field"><i>规格</i><input id="nfSpec" placeholder="例如：550ml×24瓶" value="' + (prefill.spec || '') + '"></label>' +
-        '<label class="field"><i>单位</i><input id="nfUnit" placeholder="箱 / 件 / 包" value="' + (prefill.unit || '件') + '"></label>' +
+        '<label class="field span2"><i>名称 *</i><input id="nfName" placeholder="例如：冰露纯净水" value="' + UI.esc(prefill.name || '') + '"></label>' +
+        '<label class="field"><i>规格</i><input id="nfSpec" placeholder="例如：550ml×24瓶" value="' + UI.esc(prefill.spec || '') + '"></label>' +
+        '<label class="field"><i>单位</i><input id="nfUnit" placeholder="箱 / 件 / 包" value="' + UI.esc(prefill.unit || '件') + '"></label>' +
         '<label class="field span2"><i>条码</i>' +
-          '<div class="bc-row"><input id="nfBc" placeholder="13 位条码" inputmode="numeric" value="' + (prefill.bc || '') + '">' +
+          '<div class="bc-row"><input id="nfBc" placeholder="13 位条码" inputmode="numeric" value="' + UI.esc(prefill.bc || '') + '">' +
           '<button class="btn soft sm" id="nfScan">' + UI.icon('scan') + '扫码</button></div></label>' +
         '<div class="field span2" id="nfCamWrap" style="display:none">' +
           '<div class="cam-box"><div id="nfCam"></div></div>' +
@@ -1119,8 +1119,8 @@ function openProductForm(prefill) {
           '</div></div>' +
         '<label class="field"><i>品类</i><select id="nfCat">' + catOpts + '</select></label>' +
         '<label class="field"><i>供应商</i><select id="nfSup"><option value="">未指定</option>' + supOpts + '</select></label>' +
-        '<label class="field"><i>库位</i><input id="nfLoc" placeholder="例如：A-01-03" value="' + (prefill.loc || '') + '"></label>' +
-        '<label class="field"><i>批次</i><input id="nfBatch" placeholder="例如：B2610" value="' + (prefill.batch || '') + '"></label>' +
+        '<label class="field"><i>库位</i><input id="nfLoc" placeholder="例如：A-01-03" value="' + UI.esc(prefill.loc || '') + '"></label>' +
+        '<label class="field"><i>批次</i><input id="nfBatch" placeholder="例如：B2610" value="' + UI.esc(prefill.batch || '') + '"></label>' +
         '<label class="field"><i>成本价 ¥</i><input id="nfCost" type="number" step="0.01" min="0" value="' + (prefill.cost || '') + '"></label>' +
         '<label class="field"><i>零售价 ¥</i><input id="nfPrice" type="number" step="0.01" min="0" value="' + (prefill.price || '') + '"></label>' +
         '<label class="field"><i>初始库存</i><input id="nfStock" type="number" min="0" value="' + (prefill.stock || 0) + '"></label>' +

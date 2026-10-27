@@ -7,6 +7,11 @@
 const KEY_V2 = 'shihuo.db.v2';
 const KEY_V1 = 'shihuo.db.v1';
 
+// 单据类型（数据层自有，避免反向依赖 pages.js）
+const DOC_TYPE = { inbound: '入库单', outbound: '出库单', transfer: '调拨单', check: '盘点单' };
+// 已过账状态集合：approved 与 done 都视为「库存已落地」
+const POSTED_STATUS = ['approved', 'done'];
+
 const Store = {
   root: { v: 2, current: null, workspaces: [] },
 
@@ -187,11 +192,8 @@ const Store = {
   },
 
   adjustStock(pid, delta, reason) {
-    const p = this.product(pid);
-    if (!p) return null;
-    p.stock = Math.max(0, p.stock + delta);
-    this._logStock(pid, delta, reason || (delta >= 0 ? '盘盈' : '报损'), 'adjust');
-    this.save();
+    const p = this._applyStock(pid, delta, reason || (delta >= 0 ? '盘盈' : '报损'), 'adjust');
+    if (p) this.save();
     return p;
   },
 
@@ -245,14 +247,17 @@ const Store = {
   // 统一过账：任何库存变动都走这里，记录流水，保证账实可追溯
   _applyStock(pid, delta, reason, source) {
     const p = this.product(pid);
-    if (!p) return;
-    p.stock = Math.max(0, p.stock + delta);
-    this._logStock(pid, delta, reason, source);
+    if (!p) return null;
+    const before = p.stock;
+    p.stock = Math.max(0, before + delta);
+    // 记录「实际变动量」而非原始 delta：库存被钳到 0 时，实际变动 = after - before
+    this._logStock(pid, p.stock - before, reason, source);
+    return p;
   },
 
   addDoc(doc) {
     this.db.docs.unshift(doc);
-    if (doc.status === 'done' || doc.status === 'approved') {
+    if (POSTED_STATUS.indexOf(doc.status) >= 0) {
       this._postDoc(doc);
     }
     this.save();
@@ -268,7 +273,7 @@ const Store = {
       if (doc.type === 'inbound') delta = it.qty;
       else if (doc.type === 'outbound' || doc.type === 'transfer') delta = -it.qty;
       else if (doc.type === 'check') delta = it.qty; // 盘点：差异数（盘盈为正、盘亏为负）
-      if (delta) this._applyStock(it.pid, delta, doc.id + ' · ' + (DOC_TYPE ? DOC_TYPE[doc.type] : doc.type), doc.type);
+      if (delta) this._applyStock(it.pid, delta, doc.id + ' · ' + (DOC_TYPE[doc.type] || doc.type), doc.type);
     });
   },
 
@@ -290,12 +295,12 @@ const Store = {
     if (!d) return null;
     const was = d.status;
     d.status = status;
-    // 通过：从未过账状态进入已过账，统一按类型过账
-    if (status === 'approved' && was !== 'approved' && was !== 'done') {
+    const wasPosted = POSTED_STATUS.indexOf(was) >= 0;
+    const willPost = POSTED_STATUS.indexOf(status) >= 0;
+    // 进入过账态 → 过账；离开过账态（驳回/退回）→ 回滚
+    if (willPost && !wasPosted) {
       this._postDoc(d);
-    }
-    // 驳回：如果此前已过账，则回滚
-    else if ((status === 'draft' || status === 'rejected') && (was === 'approved' || was === 'done')) {
+    } else if (!willPost && wasPosted) {
       this._reverseDoc(d);
     }
     this.save();

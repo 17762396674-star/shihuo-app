@@ -115,6 +115,7 @@ const App = {
     const logoutBtn = document.querySelector('[data-act="logout"]');
     if (logoutBtn) logoutBtn.addEventListener('click', async () => {
       if (await UI.confirm('退出登录', '将退出当前工作空间，回到空间选择页。')) {
+        this.clearPageState();
         Store.leave();
         this.renderNav();
         location.hash = '#/spaces';
@@ -248,6 +249,21 @@ const App = {
 
   refresh(keepScroll) { this.render(keepScroll); },
 
+  // 清理各页面的运行态（切换/退出空间时调用，避免残留旧空间的 pid 导致渲染崩溃）
+  clearPageState() {
+    Engine.stopCamera();
+    if (typeof ScanState !== 'undefined') {
+      ScanState.bill = [];
+      ScanState.lastProduct = null;
+      ScanState.doc = null;
+      ScanState.docImg = null;
+      ScanState.text = null;
+      ScanState.camOn = false;
+    }
+    if (typeof InvState !== 'undefined') InvState.q = '';
+    if (typeof DocState !== 'undefined') DocState.filter = 'all';
+  },
+
   badge() {
     const b = document.getElementById('navBadge');
     if (!b) return;
@@ -333,6 +349,7 @@ const App = {
     el.querySelectorAll('[data-ws]').forEach(c => {
       c.addEventListener('click', e => {
         if (e.target.closest('[data-del]')) return;
+        this.clearPageState();
         Store.enter(c.dataset.ws);
         this.renderNav();
         location.hash = '#/dashboard';
