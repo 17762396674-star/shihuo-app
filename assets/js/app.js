@@ -395,9 +395,17 @@ const App = {
           const w = Store.create(tpl, inp.value);
           UI.close();
           App.renderNav();
-          location.hash = '#/dashboard';
+          const hasProducts = (w.data.products || []).length > 0;
+          if (hasProducts) {
+            // 模板自带商品：直接进入工作台
+            location.hash = '#/dashboard';
+            UI.toast('已创建「' + w.name + '」', 'ok');
+          } else {
+            // 新空间还没有商品：按流程引导先建档，再扫码入库
+            location.hash = '#/products';
+            UI.toast('空间已创建，先添加' + (w.labels ? w.labels.product : '商品') + '，再扫码入库', 'ok');
+          }
           App.refresh();
-          UI.toast('已创建「' + w.name + '」', 'ok');
         });
       },
     });
