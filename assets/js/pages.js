@@ -1168,6 +1168,8 @@ function openProductForm(prefill) {
         if (camWrap.style.display === 'block') { stopNfCam(); return; }
 
         camWrap.style.display = 'block';
+        // 等一帧让容器完成布局，避免 html5-qrcode 拿到 0 尺寸容器而启动失败
+        await new Promise(r => requestAnimationFrame(r));
         try {
           await Engine.startQrScan('nfCam', (code) => {
             bcInput.value = code;

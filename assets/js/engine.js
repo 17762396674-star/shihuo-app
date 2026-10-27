@@ -209,15 +209,10 @@ const Engine = (() => {
       ],
     });
     state.qrScanner = scanner;
+    // 不设 qrbox（扫描整个画面）：避免容器尺寸为 0 时 qrbox 函数返回 <50px 导致 start 报错
     await scanner.start(
       { facingMode: { ideal: 'environment' } },
-      {
-        fps: 10,
-        qrbox: (vw, vh) => {
-          const s = Math.round(Math.min(vw, vh) * 0.72);
-          return { width: s, height: s };
-        },
-      },
+      { fps: 10 },
       (decodedText) => { onResult(decodedText); },
       () => {}  // 每帧未识别到，忽略
     );
