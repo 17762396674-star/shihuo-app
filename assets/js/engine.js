@@ -128,7 +128,16 @@ const Engine = (() => {
         }
         const ctx = src.getContext('2d', { willReadFrequently: true });
         const img = ctx.getImageData(0, 0, src.width, src.height);
-        const lum = new Z.RGBLuminanceSource(img.data, src.width, src.height);
+        // 关键修复：getImageData 返回 RGBA 交错数据（每像素 4 字节），
+        // 而 ZXing 的 RGBLuminanceSource 对 Uint8ClampedArray 会直接当作
+        // 「每像素 1 字节的灰度」使用，颜色通道错乱导致永远解不出。
+        // 必须先把 RGBA 转成灰度再喂进去。
+        const gray = new Uint8ClampedArray(src.width * src.height);
+        const d = img.data;
+        for (let i = 0, j = 0; i < d.length; i += 4, j++) {
+          gray[j] = (d[i] * 299 + d[i + 1] * 587 + d[i + 2] * 114) / 1000;
+        }
+        const lum = new Z.RGBLuminanceSource(gray, src.width, src.height);
         const bmp = new Z.BinaryBitmap(new Z.HybridBinarizer(lum));
         return reader.decode(bmp, hints);
       } catch (e) { /* 下一尺度重试 */ }

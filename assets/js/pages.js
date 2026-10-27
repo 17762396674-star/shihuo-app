@@ -406,10 +406,13 @@ function mountBarcode(el) {
       }
       try {
         badge.innerHTML = UI.icon('camera') + '启动摄像头…';
+        let zxingWarned = false;
         await Engine.startCamera(video, (tick, r, dup) => {
-          if (r && !dup) acceptCode(r.code, true);
-          else if (!r && Engine.zxingDown && tick === 1) {
-            // 解码库加载失败，明确提示，避免一直「扫不出」却无反馈
+          if (r && !dup) {
+            acceptCode(r.code, true);
+          } else if (!r && Engine.zxingDown && !zxingWarned) {
+            // 解码库加载失败（CDN 网络问题），明确提示一次，避免一直「扫不出」却无反馈
+            zxingWarned = true;
             Engine.stopCamera(); ScanState.camOn = false;
             video.style.display = 'none'; idle.style.display = ''; line.style.display = 'none';
             camBtn.innerHTML = UI.icon('camera') + '开启摄像头';
