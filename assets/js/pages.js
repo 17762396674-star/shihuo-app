@@ -366,9 +366,16 @@ function mountBarcode(el) {
   const line = el.querySelector('#vfLine');
 
   function acceptCode(code, fromCamera) {
+    // 引擎在「连续确认」成功后已自动停止摄像头，这里同步 UI 状态（停止、复位按钮）
+    if (fromCamera) {
+      Engine.stopCamera();
+      ScanState.camOn = false;
+      video.style.display = 'none'; idle.style.display = ''; line.style.display = 'none';
+      camBtn.innerHTML = UI.icon('camera') + '开启摄像头';
+    }
     const p = Store.byBarcode(code);
     if (!p) {
-      // 未匹配：提供一键建档入口
+      // 未匹配：停止后明确提示，并提供一键建档入口
       UI.toast('未匹配到商品：' + code, 'warn');
       badge.innerHTML = UI.icon('alert') + '未匹配 ' + code;
       UI.open({
@@ -389,7 +396,6 @@ function mountBarcode(el) {
     ScanState.lastProduct = { pid: p.id, code: code, at: Date.now() };
     Store.addScan({ code: code, pid: p.id, name: p.name, from: fromCamera ? 'camera' : 'image' });
     badge.innerHTML = UI.icon('check') + '识别成功';
-    if (fromCamera) { Engine.stopCamera(); ScanState.camOn = false; }
     UI.toast('已识别 ' + p.name, 'ok');
     App.refresh();
   }

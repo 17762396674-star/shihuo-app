@@ -188,6 +188,11 @@ const Engine = (() => {
 
     const canvas = document.createElement('canvas');
     let busy = false, tick = 0;
+    let pending = '';      // 当前候选条码
+    let pendingCount = 0;  // 连续解出次数
+    const CONFIRM = 2;     // 同一码连续解出 2 次才认定，降低单帧噪声误判
+
+    state.lastCode = '';   // 每次启动摄像头都重置，避免跨次扫描残留状态
 
     state.loop = setInterval(async () => {
       if (busy || video.readyState < 2) return;
@@ -200,17 +205,22 @@ const Engine = (() => {
         canvas.height = Math.round(vh * s);
         canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
         tick++;
-        if (onFrame) onFrame(tick);
+        if (onFrame) onFrame(tick);   // 每帧心跳（供页面检测解码库是否可用）
         const r = await decodeCanvas(canvas);
-        if (r && r.code !== state.lastCode) {
-          state.lastCode = r.code;
-          if (onFrame) onFrame(tick, r);
-        } else if (r && onFrame) {
-          onFrame(tick, r, true);
+        if (r && r.code) {
+          // 连续确认：同一码连续解出 CONFIRM 次才认定，避免单帧噪声误判
+          if (r.code === pending) pendingCount++;
+          else { pending = r.code; pendingCount = 1; }
+          if (pendingCount >= CONFIRM) {
+            state.lastCode = r.code;
+            stopCamera();               // 确认后立即停止，不再一直扫
+            if (onFrame) onFrame(tick, r);
+            return;
+          }
         }
       } catch (e) { /* 帧丢弃 */ }
       busy = false;
-    }, 220);
+    }, 200);
 
     return stream;
   }
