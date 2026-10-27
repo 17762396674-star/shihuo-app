@@ -1086,6 +1086,12 @@ function openProductForm(prefill) {
         '<label class="field span2"><i>条码</i>' +
           '<div class="bc-row"><input id="nfBc" placeholder="13 位条码" inputmode="numeric" value="' + (prefill.bc || '') + '">' +
           '<button class="btn soft sm" id="nfScan">' + UI.icon('scan') + '扫码</button></div></label>' +
+        '<div class="field span2" id="nfCamWrap" style="display:none">' +
+          '<div class="cam-box"><video id="nfCam" playsinline muted></video></div>' +
+          '<div class="bc-row" style="margin-top:8px">' +
+            '<button class="btn soft sm" id="nfUpload">' + UI.icon('upload') + '上传图片</button>' +
+            '<button class="btn ghost sm" id="nfCamOff">' + UI.icon('x') + '关闭摄像头</button>' +
+          '</div></div>' +
         '<label class="field"><i>品类</i><select id="nfCat">' + catOpts + '</select></label>' +
         '<label class="field"><i>供应商</i><select id="nfSup"><option value="">未指定</option>' + supOpts + '</select></label>' +
         '<label class="field"><i>库位</i><input id="nfLoc" placeholder="例如：A-01-03" value="' + (prefill.loc || '') + '"></label>' +
@@ -1117,51 +1123,66 @@ function openProductForm(prefill) {
           expiry: l.querySelector('#nfExpiry').value || '',
         });
         if (p.stock > 0) Store._logStock(p.id, p.stock, '建档初始库存', 'init');
+        Engine.stopCamera();
         UI.close();
         UI.toast('已新增「' + p.name + '」', 'ok');
         App.refresh();
       });
       l.querySelector('#nfScan').addEventListener('click', async () => {
-        // 打开摄像头扫码，识别到条码后回填
-        UI.open({
-          variant: 'modal',
-          title: '扫描条码',
-          sub: '对准商品条码',
-          body: '<div class="cam-box"><video id="nfCam" playsinline muted></video><span class="vf-c tl"></span><span class="vf-c tr"></span><span class="vf-c bl"></span><span class="vf-c br"></span></div>',
-          foot: '<button class="btn ghost" data-close>关闭</button><button class="btn soft" id="nfUpload">上传图片</button>',
-          onMount(l2) {
-            const v = l2.querySelector('#nfCam');
-            let got = false;
-            Engine.startCamera(v, (tick, r, dup) => {
-              if (r && !dup && !got) {
-                got = true;
-                Engine.stopCamera();
-                l.querySelector('#nfBc').value = r.code;
-                UI.close();
-                UI.toast('已识别条码 ' + r.code, 'ok');
-              }
-            }).catch(() => {});
-            l2.querySelector('#nfUpload').addEventListener('click', () => {
-              const inp = document.createElement('input');
-              inp.type = 'file'; inp.accept = 'image/*';
-              inp.onchange = async () => {
-                if (!inp.files.length) return;
-                const r = await Engine.decodeFile(inp.files[0]);
-                if (r) {
-                  Engine.stopCamera(); got = true;
-                  l.querySelector('#nfBc').value = r.code;
-                  UI.close();
-                  UI.toast('已识别条码 ' + r.code, 'ok');
-                } else {
-                  UI.toast('未识别到条码', 'warn');
-                }
-              };
-              inp.click();
-            });
-          },
-        });
-        document.getElementById('scrim').addEventListener('click', () => Engine.stopCamera());
+        // 内嵌摄像头扫码（不再嵌套弹窗，避免覆盖当前表单）
+        const camWrap = l.querySelector('#nfCamWrap');
+        const camVideo = l.querySelector('#nfCam');
+        const bcInput = l.querySelector('#nfBc');
+        const scanBtn = l.querySelector('#nfScan');
+
+        function stopNfCam() {
+          Engine.stopCamera();
+          camWrap.style.display = 'none';
+          scanBtn.innerHTML = UI.icon('scan') + '扫码';
+        }
+
+        if (camWrap.style.display === 'block') { stopNfCam(); return; }
+
+        camWrap.style.display = 'block';
+        try {
+          await Engine.startCamera(camVideo, (tick, r, dup) => {
+            if (r && !dup) {
+              bcInput.value = r.code;
+              stopNfCam();
+              UI.toast('已识别条码 ' + r.code, 'ok');
+            }
+          });
+          scanBtn.innerHTML = UI.icon('x') + '关闭扫码';
+        } catch (e) {
+          camWrap.style.display = 'none';
+          UI.toast(e.message || '摄像头启动失败，请改用上传图片', 'err');
+        }
       });
+
+      l.querySelector('#nfUpload').addEventListener('click', () => {
+        const inp = document.createElement('input');
+        inp.type = 'file'; inp.accept = 'image/*';
+        inp.onchange = async () => {
+          if (!inp.files.length) return;
+          const r = await Engine.decodeFile(inp.files[0]);
+          if (r) {
+            l.querySelector('#nfBc').value = r.code;
+            UI.toast('已识别条码 ' + r.code, 'ok');
+          } else {
+            UI.toast('未识别到条码', 'warn');
+          }
+        };
+        inp.click();
+      });
+
+      l.querySelector('#nfCamOff').addEventListener('click', () => {
+        Engine.stopCamera();
+        l.querySelector('#nfCamWrap').style.display = 'none';
+        l.querySelector('#nfScan').innerHTML = UI.icon('scan') + '扫码';
+      });
+
+      // 关闭表单时一并释放摄像头，避免后台残留
+      l.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', () => Engine.stopCamera()));
     },
   });
 }
