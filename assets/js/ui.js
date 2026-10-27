@@ -71,6 +71,24 @@ const UI = (() => {
   };
   const num = n => Number(n || 0).toLocaleString('zh-CN');
 
+  /* ---------------- 文件导出 ---------------- */
+  function downloadCSV(filename, rows) {
+    const BOM = '\uFEFF';  // UTF-8 BOM，让 Excel 正确识别中文
+    const csv = BOM + rows.map(r => r.map(cell => {
+      const s = String(cell == null ? '' : cell);
+      return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    }).join(',')).join('\r\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
   /* ---------------- Toast ---------------- */
   function toast(msg, type) {
     const box = document.getElementById('toasts');
@@ -276,5 +294,6 @@ const UI = (() => {
   return {
     icon, hydrate, money, moneyShort, num, toast, open, close, confirm,
     groupedBars, areaLine, donut, hbars, barcode, ean13, productTile,
+    downloadCSV,
   };
 })();

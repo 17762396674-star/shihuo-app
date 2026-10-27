@@ -112,6 +112,16 @@ const App = {
       location.hash = '#/spaces';
     });
 
+    const logoutBtn = document.querySelector('[data-act="logout"]');
+    if (logoutBtn) logoutBtn.addEventListener('click', async () => {
+      if (await UI.confirm('退出登录', '将退出当前工作空间，回到空间选择页。')) {
+        Store.leave();
+        this.renderNav();
+        location.hash = '#/spaces';
+        UI.toast('已退出', 'ok');
+      }
+    });
+
     document.getElementById('menuBtn').addEventListener('click', () => this.openNavSheet());
     document.getElementById('moreBtn').addEventListener('click', () => this.openNavSheet());
 

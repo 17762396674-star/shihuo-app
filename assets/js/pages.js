@@ -1369,7 +1369,19 @@ Pages.insights = {
   },
   mount(el) {
     const e = el.querySelector('#exportBtn');
-    if (e) e.addEventListener('click', () => UI.toast('补货建议已导出为 CSV（演示）', 'ok'));
+    if (e) e.addEventListener('click', () => {
+      const ps = Store.products();
+      const suggest = ps.filter(p => p.stock < p.safe * 1.2)
+        .map(p => ({ p, need: Math.max(p.safe * 2 - p.stock, 0) }))
+        .sort((a, b) => b.need - a.need).slice(0, 5);
+      if (!suggest.length) { UI.toast('暂无需要补货的商品', 'warn'); return; }
+      const rows = [
+        ['商品名称', '规格', '当前库存', '安全线', '建议补货', '单位', '供应商'],
+        ...suggest.map(s => [s.p.name, s.p.spec || '', s.p.stock, s.p.safe, s.need, s.p.unit, s.p.supplier || '']),
+      ];
+      UI.downloadCSV('补货建议_' + todayStr() + '.csv', rows);
+      UI.toast('已导出 ' + suggest.length + ' 条补货建议', 'ok');
+    });
   },
 };
 
