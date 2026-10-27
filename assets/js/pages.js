@@ -313,7 +313,7 @@ function renderBarcodeTab() {
     '</div>' +
     '<div class="scan-stage">' +
       '<div class="viewfinder" id="vf">' +
-        '<video id="cam" playsinline muted></video>' +
+        '<div id="cam"></div>' +
         '<div class="vf-idle" id="vfIdle">' + UI.icon('barcode') + '<b>摄像头未开启</b><i>也可以上传图片或手动输入</i></div>' +
         '<span class="vf-c tl"></span><span class="vf-c tr"></span><span class="vf-c bl"></span><span class="vf-c br"></span>' +
         '<div class="vf-line" id="vfLine"></div>' +
@@ -365,17 +365,16 @@ function renderBarcodeTab() {
 
 function mountBarcode(el) {
   const camBtn = el.querySelector('#camBtn');
-  const video = el.querySelector('#cam');
   const badge = el.querySelector('#vfBadge');
   const idle = el.querySelector('#vfIdle');
   const line = el.querySelector('#vfLine');
 
   function acceptCode(code, fromCamera) {
-    // 引擎在「连续确认」成功后已自动停止摄像头，这里同步 UI 状态（停止、复位按钮）
+    // 识别成功：引擎已停止摄像头（html5-qrcode 的 clear 会移除其 video），这里复位 UI
     if (fromCamera) {
       Engine.stopCamera();
       ScanState.camOn = false;
-      video.style.display = 'none'; idle.style.display = ''; line.style.display = 'none';
+      idle.style.display = ''; line.style.display = 'none';
       camBtn.innerHTML = UI.icon('camera') + '开启摄像头';
     }
     const p = Store.byBarcode(code);
@@ -423,29 +422,17 @@ function mountBarcode(el) {
     camBtn.addEventListener('click', async () => {
       if (ScanState.camOn) {
         Engine.stopCamera(); ScanState.camOn = false;
-        video.style.display = 'none'; idle.style.display = '';
+        idle.style.display = '';
         line.style.display = 'none';
         camBtn.innerHTML = UI.icon('camera') + '开启摄像头';
         return;
       }
       try {
         badge.innerHTML = UI.icon('camera') + '启动摄像头…';
-        let zxingWarned = false;
-        await Engine.startCamera(video, (tick, r, dup) => {
-          if (r && !dup) {
-            acceptCode(r.code, true);
-          } else if (!r && Engine.zxingDown && !zxingWarned) {
-            // 解码库加载失败（CDN 网络问题），明确提示一次，避免一直「扫不出」却无反馈
-            zxingWarned = true;
-            Engine.stopCamera(); ScanState.camOn = false;
-            video.style.display = 'none'; idle.style.display = ''; line.style.display = 'none';
-            camBtn.innerHTML = UI.icon('camera') + '开启摄像头';
-            badge.innerHTML = UI.icon('alert') + '解码库不可用';
-            UI.toast('条码解码库加载失败，请检查网络后重试，或改用「上传条码图」', 'err');
-          }
+        await Engine.startQrScan('cam', (code) => {
+          acceptCode(code, true);
         });
         ScanState.camOn = true;
-        video.style.display = 'block';
         idle.style.display = 'none';
         line.style.display = '';
         badge.innerHTML = UI.icon('scan') + '正在扫描…';
@@ -1125,7 +1112,7 @@ function openProductForm(prefill) {
           '<div class="bc-row"><input id="nfBc" placeholder="13 位条码" inputmode="numeric" value="' + (prefill.bc || '') + '">' +
           '<button class="btn soft sm" id="nfScan">' + UI.icon('scan') + '扫码</button></div></label>' +
         '<div class="field span2" id="nfCamWrap" style="display:none">' +
-          '<div class="cam-box"><video id="nfCam" playsinline muted></video></div>' +
+          '<div class="cam-box"><div id="nfCam"></div></div>' +
           '<div class="bc-row" style="margin-top:8px">' +
             '<button class="btn soft sm" id="nfUpload">' + UI.icon('upload') + '上传图片</button>' +
             '<button class="btn ghost sm" id="nfCamOff">' + UI.icon('x') + '关闭摄像头</button>' +
@@ -1167,9 +1154,8 @@ function openProductForm(prefill) {
         App.refresh();
       });
       l.querySelector('#nfScan').addEventListener('click', async () => {
-        // 内嵌摄像头扫码（不再嵌套弹窗，避免覆盖当前表单）
+        // 内嵌摄像头扫码（html5-qrcode，不再嵌套弹窗）
         const camWrap = l.querySelector('#nfCamWrap');
-        const camVideo = l.querySelector('#nfCam');
         const bcInput = l.querySelector('#nfBc');
         const scanBtn = l.querySelector('#nfScan');
 
@@ -1183,12 +1169,10 @@ function openProductForm(prefill) {
 
         camWrap.style.display = 'block';
         try {
-          await Engine.startCamera(camVideo, (tick, r, dup) => {
-            if (r && !dup) {
-              bcInput.value = r.code;
-              stopNfCam();
-              UI.toast('已识别条码 ' + r.code, 'ok');
-            }
+          await Engine.startQrScan('nfCam', (code) => {
+            bcInput.value = code;
+            stopNfCam();
+            UI.toast('已识别条码 ' + code, 'ok');
           });
           scanBtn.innerHTML = UI.icon('x') + '关闭扫码';
         } catch (e) {

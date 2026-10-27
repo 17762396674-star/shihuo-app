@@ -30,6 +30,7 @@ const Engine = (() => {
     stream: null,
     loop: null,
     lastCode: '',
+    qrScanner: null,
   };
 
   function loadScript(src) {
@@ -173,6 +174,7 @@ const Engine = (() => {
   }
 
   /* ---------------- 摄像头 ---------------- */
+  // 展示摄像头画面（拍照录单用），不做实时解码
   async function startCamera(video, onFrame) {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       throw new Error('当前浏览器不支持摄像头调用（需 HTTPS 或 localhost 环境）');
@@ -185,48 +187,52 @@ const Engine = (() => {
     state.stream = stream;
     video.srcObject = stream;
     await video.play().catch(() => {});
-
-    const canvas = document.createElement('canvas');
-    let busy = false, tick = 0;
-    let pending = '';      // 当前候选条码
-    let pendingCount = 0;  // 连续解出次数
-    const CONFIRM = 2;     // 同一码连续解出 2 次才认定，降低单帧噪声误判
-
-    state.lastCode = '';   // 每次启动摄像头都重置，避免跨次扫描残留状态
-
-    state.loop = setInterval(async () => {
-      if (busy || video.readyState < 2) return;
-      busy = true;
-      try {
-        const vw = video.videoWidth, vh = video.videoHeight;
-        if (!vw || !vh) { busy = false; return; }
-        const s = Math.min(1, 900 / Math.max(vw, vh));
-        canvas.width = Math.round(vw * s);
-        canvas.height = Math.round(vh * s);
-        canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
-        tick++;
-        if (onFrame) onFrame(tick);   // 每帧心跳（供页面检测解码库是否可用）
-        const r = await decodeCanvas(canvas);
-        if (r && r.code) {
-          // 连续确认：同一码连续解出 CONFIRM 次才认定，避免单帧噪声误判
-          if (r.code === pending) pendingCount++;
-          else { pending = r.code; pendingCount = 1; }
-          if (pendingCount >= CONFIRM) {
-            state.lastCode = r.code;
-            stopCamera();               // 确认后立即停止，不再一直扫
-            if (onFrame) onFrame(tick, r);
-            return;
-          }
-        }
-      } catch (e) { /* 帧丢弃 */ }
-      busy = false;
-    }, 200);
-
     return stream;
   }
 
+  // html5-qrcode 扫码（专为视频流优化，准确率与体验优于手动 ZXing 循环）
+  async function startQrScan(containerId, onResult) {
+    if (!window.Html5Qrcode) {
+      throw new Error('条码解码库未加载');
+    }
+    stopCamera();
+    const scanner = new window.Html5Qrcode(containerId, {
+      formatsToSupport: [
+        window.Html5QrcodeSupportedFormats.EAN_13,
+        window.Html5QrcodeSupportedFormats.EAN_8,
+        window.Html5QrcodeSupportedFormats.CODE_128,
+        window.Html5QrcodeSupportedFormats.CODE_39,
+        window.Html5QrcodeSupportedFormats.UPC_A,
+        window.Html5QrcodeSupportedFormats.UPC_E,
+        window.Html5QrcodeSupportedFormats.ITF,
+        window.Html5QrcodeSupportedFormats.QR_CODE,
+      ],
+    });
+    state.qrScanner = scanner;
+    await scanner.start(
+      { facingMode: { ideal: 'environment' } },
+      {
+        fps: 10,
+        qrbox: (vw, vh) => {
+          const s = Math.round(Math.min(vw, vh) * 0.72);
+          return { width: s, height: s };
+        },
+      },
+      (decodedText) => { onResult(decodedText); },
+      () => {}  // 每帧未识别到，忽略
+    );
+  }
+
   function stopCamera() {
+    // 停 html5-qrcode 扫码
+    if (state.qrScanner) {
+      const s = state.qrScanner;
+      state.qrScanner = null;
+      s.stop().then(() => s.clear()).catch(() => { try { s.clear(); } catch (e) {} });
+    }
+    // 停旧 canvas 循环（兼容）
     if (state.loop) { clearInterval(state.loop); state.loop = null; }
+    // 停普通 stream
     if (state.stream) {
       state.stream.getTracks().forEach(t => t.stop());
       state.stream = null;
@@ -462,7 +468,7 @@ const Engine = (() => {
   return {
     state,
     warmup, recognize, parseDocument,
-    decodeFile, decodeCanvas, startCamera, stopCamera, fileToCanvas,
+    decodeFile, decodeCanvas, startCamera, startQrScan, stopCamera, fileToCanvas,
     get isDemo() { return state.demo; },
     get hasDetector() { return hasNativeDetector(); },
     get zxingDown() { return state.zxingUnavailable; },
