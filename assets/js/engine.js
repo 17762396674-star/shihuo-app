@@ -192,6 +192,12 @@ const Engine = (() => {
 
   // html5-qrcode 扫码（专为视频流优化，准确率与体验优于手动 ZXing 循环）
   async function startQrScan(containerId, onResult) {
+    // 懒加载 html5-qrcode（本地 vendor）：避免 375KB 同步脚本阻塞页面初始化
+    if (!window.Html5Qrcode) {
+      try {
+        await loadScript('assets/vendor/html5-qrcode.min.js');
+      } catch (e) { /* 加载失败则走下面的兜底 */ }
+    }
     if (!window.Html5Qrcode) {
       throw new Error('条码解码库未加载');
     }
